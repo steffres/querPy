@@ -1200,7 +1200,7 @@ summary_sample_limit = 3
 # endpoint
 # defines the SPARQL endpoint against which all the queries are run
 # MANDATORY
-endpoint = \"https://virtuoso.parthenos.d4science.org/sparql\"
+endpoint = \"http://dbpedia.org/sparql\"
 
 
 # queries
