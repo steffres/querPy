@@ -10,10 +10,10 @@ There is no fancyness at all to this script; it just provides the core logic for
 The script was written in python3, no downward compability to python2.x was tested.
 
 The script brings in two major dependencies: 
-* two external libaries 
-** SPARQLWrapper: https://github.com/RDFLib/sparqlwrapper
-** google-api-python-client: https://github.com/google/google-api-python-client
-* google OAuth2 credentials (their API requires such)
+##### two external libaries:
+* SPARQLWrapper: https://github.com/RDFLib/sparqlwrapper
+* google-api-python-client: https://github.com/google/google-api-python-client
+##### google OAuth2 credentials (their API requires such)
 
 #### External libaries
 
