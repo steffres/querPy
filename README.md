@@ -1,8 +1,8 @@
 ## querPy
 
-An extendable script for executing multiple queries against a SPARQL-endpoint of your choice, returning the result-data either in different data formats or uploaded as a google sheets files into a google folder or inserted into existing google sheets file.
+An extendable script for executing multiple queries against a SPARQL-endpoint of your choice, returning the result-data either in different data formats (csv, tsv, xml, json, xslx) to be saved locally or uploaded as a google sheets files into a google folder or inserted into existing google sheets file. Additionally anytime it is executed it also creates a summary (as a file if saved locally, or as a page if saved into an xslx or google sheets), wherein the original sparql-queries are included, their execution times, their total number of results, and a few sample result lines.
 
-There is no fancyness at all to this script; it just provides the core logic for the described purpose, in a minimalistic manner in order to be extensible for any kind of interface to be wrapped around it later on. 
+There is no fancyness at all to this script; it just provides the core logic for the described purpose, in a minimalistic manner in order to be extensible for any kind of interface to be wrapped around it. 
 
 
 ### dependencies
@@ -10,7 +10,9 @@ There is no fancyness at all to this script; it just provides the core logic for
 The script was written in python3, no downward compability to python2.x was tested.
 
 The script brings in two major dependencies: 
-* two external libaries (SPARQLWrapper, google-api-python-client)
+* two external libaries 
+** SPARQLWrapper: https://github.com/RDFLib/sparqlwrapper
+** google-api-python-client: https://github.com/google/google-api-python-client
 * google OAuth2 credentials (their API requires such)
 
 #### External libaries
@@ -26,7 +28,7 @@ pip install google-api-python-client
 
 Only when writing into google sheets or folders, you need to provide two files for google to process the traffic via its API:
 * client_secret.json (basically authenticating the script as a service)
-* credentials.json (authenticating the script to act on a user's behalf (also to write into his/her private google drive)
+* credentials.json (authenticating the script to act on a user's behalf, and also to write into his/her private google drive)
 
 
 To obtain a client_secret.json file you must log into the google developer console, register a project, and download the secrets-file, as outlined here:
@@ -53,7 +55,7 @@ To create a template you can run:
 python querPy.py -t
 ```
 
-After which you would find a template file in your folder. The file is itself a python module (due to problems having arisen when using other formats, as json doesn't allow multilines content (annoying when writing sparql-queries) and xml can't be used due to '<' being a meta-character but sparql queries can contain such). 
+After which you would find a template file in your folder. The file is itself a python module (due to problems having arisen when using other popular formats, such as json doesn't allow multilines content (annoying when writing sparql-queries) and xml can't be used due to '<' being a meta-character but sparql queries can contain such). 
 
 Within the file there are several variables (most of which are actually optional):
 
@@ -72,9 +74,9 @@ defines where to save the results, input can be:
 
 * a local path to a folder 
 
-* a URL for a public google sheets document  
+* a URL for a google sheets document  
 
-* a URL for a public google drive folder
+* a URL for a google drive folder
 
 NOTE: On windows, folders in a path use backslashes, in such a case it is mandatory to attach a 'r' in front of the quotes, e.g. r"C:\Users\sresch\.."
 In the other cases the 'r' is simply ignored; thus best would be to always leave it there.
