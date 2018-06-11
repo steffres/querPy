@@ -93,6 +93,11 @@ defines how many rows shall be displayed in the summary
 
 OPTIONAL, if not set, 5 will be used
 
+#### cooldown_between_queries
+defines how many seconds should be waited between execution of individual queries in order to prevent exhaustion of Google API due to too many writes per time-interval
+
+OPTIONAL, if not set, 0 will be used
+
 #### endpoint
 defines the SPARQL endpoint against which all the queries are run
 
