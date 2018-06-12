@@ -314,12 +314,22 @@ def execute_queries(data, output_writer):
 
         sparql_wrapper = SPARQLWrapper(data['endpoint'])
 
-        # get count of all triples in endpoint for statistical purposes
-        sparql_wrapper.setQuery("SELECT COUNT(*) WHERE {[][][]}")
-        sparql_wrapper.setReturnFormat(JSON)
-        count_triples_in_endpoint = sparql_wrapper.query().convert()
-        data['count_triples_in_endpoint'] = count_triples_in_endpoint["results"]["bindings"][0]["callret-0"]["value"]
-        logging.info("count_triples_in_endpoint: " + data['count_triples_in_endpoint'] + "\n")
+        try:
+
+            # get count of all triples in endpoint for statistical purposes
+            sparql_wrapper.setQuery("SELECT COUNT(*) WHERE {[][][]}")
+            sparql_wrapper.setReturnFormat(JSON)
+            count_triples_in_endpoint = sparql_wrapper.query().convert()
+            data['count_triples_in_endpoint'] = count_triples_in_endpoint["results"]["bindings"][0]["callret-0"]["value"]
+            logging.info("count_triples_in_endpoint: " + data['count_triples_in_endpoint'] + "\n")
+            data['header_error_message'] = None
+
+        except Exception as ex:
+
+            message = "EXCEPTION OCCURED! " + str(ex)
+            print(message)
+            logging.error(message)
+            data['header_error_message'] = message
 
         # Write header
         output_writer.write_header_summary(data)
@@ -341,6 +351,22 @@ def execute_queries(data, output_writer):
 
             try:
 
+                # execute query
+
+                sparql_wrapper.setQuery(query['query_text'])
+
+                if data['output_format'] == "XLSX":
+                    sparql_wrapper.setReturnFormat(CSV)
+                else:
+                    sparql_wrapper.setReturnFormat(data['output_format'])
+
+                logging.info("query_text: \n" + query['query_text'])
+
+                startTime = time.time()
+                results = sparql_wrapper.query().convert()
+                query['results_execution_duration'] = time.time() - startTime
+
+
                 # get count of total results for query
 
                 pattern = re.compile("select", re.IGNORECASE)
@@ -361,28 +387,13 @@ def execute_queries(data, output_writer):
                 query['results_lines_count'] = results_lines_count
                 logging.info("results_lines_count: " + query['results_lines_count'] + "\n")
 
-                # execute query
-
-                sparql_wrapper.setQuery(query['query_text'])
-
-                if data['output_format'] == "XLSX":
-                    sparql_wrapper.setReturnFormat(CSV)
-                else:
-                    sparql_wrapper.setReturnFormat(data['output_format'])
-
-                logging.info("query_text: \n" + query['query_text'])
-
-                startTime = time.time()
-                results = sparql_wrapper.query().convert()
-
             except Exception as ex:
                 message = "EXCEPTION OCCURED! " + str(ex) + "\n Continue with execution of next query."
                 print(message)
                 logging.error(message)
                 query['error_message'] = str(ex)
+                query['results_execution_duration'] = time.time() - startTime
 
-            results_execution_duration = time.time() - startTime
-            query['results_execution_duration'] = results_execution_duration
             query['results'] = results
             logging.info("results_execution_duration: " + str(query['results_execution_duration']) + "\n")
 
@@ -885,11 +896,15 @@ class OutputWriter:
                 self.xlsx_worksheet_summary.write(self.line_number + 1, 0, data['description'])
                 self.line_number += 1
             self.line_number += 2
-            self.xlsx_worksheet_summary.write(self.line_number, 0, "Endpoint: " + data['endpoint'])
-            self.line_number += 1
-            self.xlsx_worksheet_summary.write(self.line_number, 0, "Total count of triples in endpoint: " + data['count_triples_in_endpoint'])
-            self.line_number += 1
             self.xlsx_worksheet_summary.write(self.line_number, 0, "Execution timestamp of script: " + data['timestamp_start'])
+            self.line_number += 1
+            if data['header_error_message'] is None:
+                self.xlsx_worksheet_summary.write(self.line_number, 0, "Endpoint: " + data['endpoint'])
+                self.line_number += 1
+                self.xlsx_worksheet_summary.write(self.line_number, 0, "Total count of triples in endpoint: " + data[
+                    'count_triples_in_endpoint'])
+            else:
+                self.xlsx_worksheet_summary.write(self.line_number, 0, data['header_error_message'])
             self.line_number += 4
 
 
@@ -908,13 +923,16 @@ class OutputWriter:
             if data['description'] != "":
                 header.append([data['description']])
             header.append([])
-            header.append(["endpoint: " + data['endpoint']])
-            header.append(
-                ["Total count of triples in endpoint: " +
-                 data['count_triples_in_endpoint']])
             header.append(
                 ["Execution timestamp of script: " +
                  data['timestamp_start']])
+            if data['header_error_message'] is None:
+                header.append(["endpoint: " + data['endpoint']])
+                header.append(
+                    ["Total count of triples in endpoint: " +
+                     data['count_triples_in_endpoint']])
+            else:
+                header.append([data['header_error_message']])
 
 
 
