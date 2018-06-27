@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 from __future__ import print_function
 import argparse
 import imp
@@ -14,7 +16,7 @@ from pathlib import Path
 from SPARQLWrapper import *
 from googleapiclient import discovery
 from oauth2client import client, tools, file
-
+from oauth2client.client import GoogleCredentials
 
 
 def main():
@@ -685,6 +687,25 @@ class OutputWriter:
             """Instantiates all necessary services for writing results to a specified google folder / sheets-file"""
 
             SCOPES = "https://www.googleapis.com/auth/drive"
+            creds_hardcoded = None
+
+
+            # Hardwired credentials
+            #
+            # !!! CAUTION !!!
+            #
+            # POSSIBILITY OF GRANTING FULL ACCESS TO YOUR PRIVATE GOOGLE DRIVE
+            #
+            # !!! CAUTION !!!
+            #
+            # For ease of usage on your local machine, you can hardwire your credentials here
+            # BUT ONLY DO THIS IF YOU NEVER SHARE THIS MODIFIED SCRIPT
+            #
+            # NEVER INSERT YOUR CREDENTIALS IF YOU WILL SHARE THIS SCRIPT!!
+            #
+            # creds_hardcoded = json.loads("""
+            #   UNCOMMENT AND INSERT CONTENT OF CREDENTIALS.JSON FILE HERE
+            # """)
 
             # use credentials file if available
             if data['credentials_path']:
@@ -697,6 +718,20 @@ class OutputWriter:
                 creds = tools.run_flow(flow, store, tools.argparser.parse_args(args=[]))
                 # note: adding 'tools.argparser.parse_args(args=[])' here is important, otherwise
                 # oauth2client.tools would parse the main command line arguments
+
+
+            elif creds_hardcoded:
+
+                creds = GoogleCredentials(
+                    creds_hardcoded['access_token'],
+                    creds_hardcoded['client_id'],
+                    creds_hardcoded['client_secret'],
+                    creds_hardcoded['refresh_token'],
+                    creds_hardcoded['token_expiry'],
+                    creds_hardcoded['token_uri'],
+                    creds_hardcoded['user_agent'],
+                    creds_hardcoded['revoke_uri']
+                )
 
             # if neither is available, abort
             else:
