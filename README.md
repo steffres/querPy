@@ -1,3 +1,31 @@
+# parthenos_discovery
+Various scripts and data related to resource discovery in project Parthenos
+
+## Visualize SPARQL results
+
+`scripts/rdf-binding2d3json.xsl` converts result coming from SPARQL endpoint (in generic xml format to json as expected by the graphviewer[1] (specific [d3][2]-json dialect).
+
+[1] http://graphviewer.acdh.oeaw.ac.at/
+[2] https://d3js.org/
+
+```xml
+<sparql xmlns="http://www.w3.org/2005/sparql-results#" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2001/sw/DataAccess/rf1/result2.xsd">
+ <head>
+  <variable name="st"/>
+  <variable name="p"/>
+  <variable name="ot"/>
+  <variable name="count"/>
+ </head>
+ <results distinct="false" ordered="true">
+  <result>
+   <binding name="st"><uri>http://www.cidoc-crm.org/cidoc-crm/E84_Information_Carrier</uri></binding>
+   <binding name="p"><uri>http://www.cidoc-crm.org/cidoc-crm/P128_carries</uri></binding>
+   <binding name="ot"><uri>http://www.cidoc-crm.org/cidoc-crm/E89_Propositional_object</uri></binding>
+   <binding name="count"><literal datatype="http://www.w3.org/2001/XMLSchema#integer">428147</literal></binding>
+  </result>
+```
+
+
 ## querPy
 
 An extendable script for executing multiple queries against a SPARQL-endpoint of your choice, returning the result-data either in different data formats (csv, tsv, xml, json, xslx) to be saved locally or uploaded as a google sheets files into a google folder or inserted into existing google sheets file. Additionally anytime it is executed it also creates a summary (as a file if saved locally, or as a page if saved into an xslx or google sheets), wherein the original sparql-queries are included, their execution times, their total number of results, and a few sample result lines.
@@ -9,10 +37,11 @@ There is no fancyness at all to this script; it just provides the core logic for
 
 The script was written in python3, no downward compability to python2.x was tested.
 
-The script brings in two major dependencies: 
-##### two external libaries:
+The script brings in few dependencies: 
+##### three external libaries:
 * SPARQLWrapper: https://github.com/RDFLib/sparqlwrapper
 * google-api-python-client: https://github.com/google/google-api-python-client
+* regex module: https://pypi.org/project/regex/ (not the default one, but with improved capabilities)
 ##### google OAuth2 credentials (their API requires such)
 
 #### External libaries
@@ -22,6 +51,7 @@ The external libraries you can install by running:
 ```
 pip install SPARQLWrapper
 pip install google-api-python-client
+pip install regex
 ```
 
 #### Google OAuth2 credentials
