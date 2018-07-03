@@ -39,13 +39,13 @@ summary_sample_limit = 3
 # cooldown_between_queries
 # defines how many seconds should be waited between execution of individual queries in order to prevent exhaustion of Google API due to too many writes per time-interval
 # OPTIONAL, if not set, 0 will be used
-cooldown_between_queries = 10
+cooldown_between_queries = 0
 
 
 # endpoint
 # defines the SPARQL endpoint against which all the queries are run
 # MANDATORY
-endpoint = "dbpedia.org/sparql"
+endpoint = "http://dbpedia.org/sparql"
 
 
 # queries
@@ -65,30 +65,28 @@ queries = [
 
         # query
         # the sparql query itself
+        # NOTE: best practise is to attach a 'r' before the string so that python would not interpret some characters as metacharacters, e.g. "\n"
         # MANDATORY
-        "query" : """
-            SELECT ?g ?s ?p ?o WHERE {
-                GRAPH ?g {
-                    ?s ?p ?o
-                }
+        "query" : r"""
+            SELECT * WHERE {
+                ?s ?p ?o
             }
         """
     }, 
     {    
-        "query" : """
-            SELECT COUNT(*) WHERE {
-                ?s a ?o
+        "query" : r"""
+            SELECT COUNT (?s) AS ?count_of_subjects_with_type WHERE {
+                ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?o
             }
         """
     },  
     {    
         "title" : "Last query" , 
         "description" : "This query counts the occurences of distinct predicates" , 
-        "query" : """
-            SELECT DISTINCT ?p COUNT(?p) AS ?pCount WHERE {
-                ?s ?p ?o
+        "query" : r"""
+            SELECT * WHERE {
+                ?s <http://www.w3.org/2000/01/rdf-schema#label> ?o
             }
-            ORDER BY DESC ( ?pCount )
         """
     },
 ]

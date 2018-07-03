@@ -9,7 +9,7 @@ import logging
 import sys
 import time
 import os
-import re
+import regex
 from httplib2 import Http
 import xlsxwriter
 from pathlib import Path
@@ -317,6 +317,9 @@ def execute_queries(data, output_writer):
         sparql_wrapper = SPARQLWrapper(data['endpoint'])
 
         try:
+            message = "Getting count of all triples in whole triplestore"
+            logging.info(message)
+            print(message)
 
             # get count of all triples in endpoint for statistical purposes
             sparql_wrapper.setQuery("SELECT COUNT(*) WHERE {[][][]}")
@@ -352,7 +355,6 @@ def execute_queries(data, output_writer):
             query['results_lines_count'] = -1
 
             try:
-
                 # execute query
 
                 sparql_wrapper.setQuery(query['query_text'])
@@ -370,8 +372,15 @@ def execute_queries(data, output_writer):
 
 
                 # get count of total results for query
+                # For this, search for the first select statement, and replace it with
+                # select count(*) where ... and add a '}' to the end, to make the original select
+                # a sub-query
+                #
+                # This requires a non-standard regex module to use variable length negativ look behind
+                # which are needed to detect only select statements, where there are no '#'
+                # before, which would make it a comment and thus not necesseray to replace
 
-                pattern = re.compile("select", re.IGNORECASE)
+                pattern = regex.compile(r"(?<!#.*)select", regex.IGNORECASE | regex.MULTILINE)
                 query_for_count = pattern.sub(
                     "SELECT COUNT(*) WHERE { \nSELECT",
                     query['query_text'],
@@ -389,12 +398,14 @@ def execute_queries(data, output_writer):
                 query['results_lines_count'] = results_lines_count
                 logging.info("results_lines_count: " + query['results_lines_count'] + "\n")
 
+
             except Exception as ex:
-                message = "EXCEPTION OCCURED! " + str(ex) + "\n Continue with execution of next query."
+                message = "EXCEPTION OCCURED WHEN EXECUTING QUERY: " + str(ex) + "\n Continue with execution of next query."
                 print(message)
                 logging.error(message)
                 query['error_message'] = str(ex)
                 query['results_execution_duration'] = time.time() - startTime
+
 
             query['results'] = results
             logging.info("results_execution_duration: " + str(query['results_execution_duration']) + "\n")
@@ -1314,13 +1325,13 @@ summary_sample_limit = 3
 # cooldown_between_queries
 # defines how many seconds should be waited between execution of individual queries in order to prevent exhaustion of Google API due to too many writes per time-interval
 # OPTIONAL, if not set, 0 will be used
-cooldown_between_queries = 10
+cooldown_between_queries = 0
 
 
 # endpoint
 # defines the SPARQL endpoint against which all the queries are run
 # MANDATORY
-endpoint = \"dbpedia.org/sparql\"
+endpoint = \"http://dbpedia.org/sparql\"
 
 
 # queries
@@ -1340,30 +1351,28 @@ queries = [
 
         # query
         # the sparql query itself
+        # NOTE: best practise is to attach a 'r' before the string so that python would not interpret some characters as metacharacters, e.g. \"\\n\"
         # MANDATORY
-        \"query\" : \"\"\"
-            SELECT ?g ?s ?p ?o WHERE {
-                GRAPH ?g {
-                    ?s ?p ?o
-                }
+        \"query\" : r\"\"\"
+            SELECT * WHERE {
+                ?s ?p ?o
             }
         \"\"\"
     }, 
     {    
-        \"query\" : \"\"\"
-            SELECT COUNT(*) WHERE {
-                ?s a ?o
+        \"query\" : r\"\"\"
+            SELECT COUNT (?s) AS ?count_of_subjects_with_type WHERE {
+                ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?o
             }
         \"\"\"
     },  
     {    
         \"title\" : \"Last query\" , 
         \"description\" : \"This query counts the occurences of distinct predicates\" , 
-        \"query\" : \"\"\"
-            SELECT DISTINCT ?p COUNT(?p) AS ?pCount WHERE {
-                ?s ?p ?o
+        \"query\" : r\"\"\"
+            SELECT * WHERE {
+                ?s <http://www.w3.org/2000/01/rdf-schema#label> ?o
             }
-            ORDER BY DESC ( ?pCount )
         \"\"\"
     },
 ]
