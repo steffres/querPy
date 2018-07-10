@@ -10,7 +10,7 @@ title = "TEST QUERIES"
 # description
 # defines the textual and human-intended description of the purpose of these queries
 # OPTIONAL, if not set, nothing will be used or displayed
-description = "This set of queries is used as a template for showcasing a valid configuration."
+description = "This set of queries is used as a template for showcasing a valid query collection file."
 
 
 # output_destination

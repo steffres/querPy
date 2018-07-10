@@ -40,48 +40,93 @@ def main():
 
         logging.basicConfig(filename="querPy_log.log", filemode="w", level=logging.INFO)
 
-        # read user configuration file
+        # read queries collection file
         conf = imp.load_source('conf', args.r)
 
-        # extract and validate data from the configuration
-        data = read_input(conf, args.r)
+        # extract and validate data from the queries collection file
+        data_all_query_collections = read_input(conf, args.r)
+        #ToDo alt: data = read_input(conf, args.r)
+
 
         ## google authentication cases
 
-        # user provides a credentials.json file
+        # case: user provides credentials.json
         if args.c:
-            data['credentials_path'] = args.c
-            data['client_secret_path'] = False
+            data_all_query_collections['credentials_path'] = args.c
+            data_all_query_collections['client_secret_path'] = False
 
-        # user provides a client_secret.json file
+        # case: user provides client_secret.json
         elif args.s:
-            data['client_secret_path'] = args.s
-            data['credentials_path'] = False
+            data_all_query_collections['client_secret_path'] = args.s
+            data_all_query_collections['credentials_path'] = False
 
-        # user did not provide any file. Search local folder for files and load them
+        # case: user did not provide any file. Search local folder for files and load them
         else:
             files_list = os.listdir('./')
 
+            # case: found credentials.json
             if "credentials.json" in files_list:
-                data['credentials_path'] = "credentials.json"
-                data['client_secret_path'] = False
+                data_all_query_collections['credentials_path'] = "credentials.json"
+                data_all_query_collections['client_secret_path'] = False
 
+            # case: found client_secret.json
             elif "client_secret.json" in files_list:
-                data['client_secret_path'] = "client_secret.json"
-                data['credentials_path'] = False
+                data_all_query_collections['client_secret_path'] = "client_secret.json"
+                data_all_query_collections['credentials_path'] = False
 
+            # case: did not find either
             else:
-                data['credentials_path'] = False
-                data['client_secret_path'] = False
+                data_all_query_collections['credentials_path'] = False
+                data_all_query_collections['client_secret_path'] = False
 
-        # create OutputWriter object from the given output-configuration
-        output_writer = OutputWriter(data)
+
+
+        for data_single_query_collection in data_all_query_collections:
+
+            output_writer = OutputWriter(data_single_query_collection)
+            execute_queries(data_single_query_collection, output_writer)
+
+            # Close xlsl writer
+            output_writer.close()
+
+
+
+        # create OutputWriter object from the given output-configuration in the queries collection file
+        # output_writer = OutputWriter(data) # todo alt
+        # Parameter von data, die in OutputWriter(data) gelesen werden:
+        # * output_destination
+        # * output_format
+        # * title
+        # * description
+        # * timestamp_start
+        # * credentials
+        # * credentials_path
+        # * client_secret_path
+        # * queries
+        # * summary_sample_limit
+
 
         # run all the queries and let them write using the OutputWriter object
-        execute_queries(data, output_writer)
+        # execute_queries(data, output_writer) # todo alt
+        # Parameter von data, die in execute_queries gelesen werden:
+        # * endpoint
+        # * output_format
+        # * cooldown_between_queries
+        # * queries
+        #
+        #   # Parameter von data, die in execute_queries > write_header_summary gelesen werden:
+            # * description
+            # * title
+            # * header_error_message
+            # * timestamp_start
+            # * endpoint
+            # * count_triples_in_endpoint
 
-        # Close xlsl writer
-        output_writer.close()
+        # Parameter von data, die in execute_queries geschrieben werden:
+        # * count_triples_in_endpoint
+        # * header_error_message
+        # * queries
+
 
 
     # user wants to create a template file and does not run a queries-file
@@ -99,7 +144,7 @@ def main():
 
 
 def read_input(conf, conf_filename):
-    """Reads input from config file and convert into usable data structure available throughout the entire program lifecycle"""
+    """Reads input from query collection file and convert into usable data structure available throughout the entire program execution"""
 
     def main(conf):
 
@@ -108,20 +153,26 @@ def read_input(conf, conf_filename):
 
         message = \
             "\n################################\n" + \
-            "READING CONFIG FILE: " + conf_filename + \
+            "READING query collection FILE: " + conf_filename + \
             "\n################################\n" + \
             "\ntimestamp: " + str(data['timestamp_start'])
         logging.info(message)
         print(message)
 
+
         # title
         try:
-            data['title'] = conf.title
+            data['title'] = construct_value(conf.title)
         except AttributeError:
-            message = "Did not find title in config file, using timestamp instead"
+            message = "Did not find title in query collection file, using timestamp instead"
             logging.info(message)
             print(message)
             data['title'] = data['timestamp_start']
+        except ValueError:
+            message = "Invalid value type for title! " + type(conf.title) + "\nOnly allowed here are strings, integers, or lists (containing variables)"
+            logging.error(message)
+            sys.exit(message)
+
         logging.info("title: " + data['title'])
 
 
@@ -129,7 +180,7 @@ def read_input(conf, conf_filename):
         try:
             data['description'] = conf.description
         except AttributeError:
-            message = "Did not find description in config file, ignoring instead"
+            message = "Did not find description in query collection file, ignoring instead"
             logging.info(message)
             print(message)
             data['description'] = ""
@@ -143,7 +194,7 @@ def read_input(conf, conf_filename):
             else:
                 data['output_destination'] = conf.output_destination
         except AttributeError:
-            message = "Did not find output_destination in config file, using local instead"
+            message = "Did not find output_destination in query collection file, using local instead"
             logging.info(message)
             print(message)
             data['output_destination'] = "."
@@ -174,7 +225,7 @@ def read_input(conf, conf_filename):
                 logging.error(message)
                 sys.exit(message)
         except AttributeError:
-            message = "Did not find output_format in config file, using csv instead"
+            message = "Did not find output_format in query collection file, using csv instead"
             logging.info(message)
             print(message)
             data['output_format'] = CSV
@@ -185,7 +236,7 @@ def read_input(conf, conf_filename):
         try:
             data['summary_sample_limit'] = conf.summary_sample_limit
         except AttributeError:
-            message = "Did not find summary_sample_limit in config file, a limit of 5 will be used instead"
+            message = "Did not find summary_sample_limit in query collection file, a limit of 5 will be used instead"
             logging.info(message)
             print(message)
             data['summary_sample_limit'] = 5
@@ -198,7 +249,7 @@ def read_input(conf, conf_filename):
         try:
             data['cooldown_between_queries'] = conf.cooldown_between_queries
         except AttributeError:
-            message = "Did not find cooldown_between_queries in config file, assuming zero instead"
+            message = "Did not find cooldown_between_queries in query collection file, assuming zero instead"
             logging.info(message)
             print(message)
             data['cooldown_between_queries'] = 0
@@ -209,7 +260,7 @@ def read_input(conf, conf_filename):
         try:
             data['endpoint'] = conf.endpoint
         except AttributeError:
-            message = "INVALID INPUT! Did not find endpoint in config file! Compare to template file generated by running 'querPy.py -t'"
+            message = "INVALID INPUT! Did not find endpoint in query collection file! Compare to template file generated by running 'querPy.py -t'"
             logging.error(message)
             sys.exit(message)
         message = "endpoint: " + data['endpoint']
@@ -217,55 +268,113 @@ def read_input(conf, conf_filename):
         print(message)
 
 
+
         # queries
-        len_queries = len(conf.queries)
-        if len_queries == 0:
-            raise AttributeError()
+        i = 0
+        for conf_query in conf.queries:
 
-        data['queries'] = []
-        for i in range(0, len_queries):
-            # get title
+            # get query ( or queries if there are variables defined ) from the query collection file
             try:
-                query_title = conf.queries[i]["title"]
-                if query_title.isspace() or query_title == "":
-                    query_title = str(i + 1)
-                else:
-                    query_title = str(i + 1) + ". " + query_title
-            except KeyError:
-                query_title = str(i + 1)
+                query_texts = conf_query['query']
 
-            # get description
-            try:
-                query_description = conf.queries[i]["description"]
             except KeyError:
-                query_description = ""
-
-            # get query
-            try:
-                query_text = conf.queries[i]["query"]
-            except KeyError:
-                message = "INVALID INPUT! Did not find queries in config file! Compare to template file generated by running 'querPy.py -t'"
+                message = "INVALID INPUT! Did not find queries in query collection file! Compare to template file generated by running 'querPy.py -t'"
                 logging.error(message)
                 sys.exit(message)
 
-            logging.info("got query_title: " + query_title)
-            logging.info("scrubbing.")
+            for query_text in query_texts:
+                i += 1
 
-            query_text = scrub_query(query_text)
+                # get title
+                try:
+                    query_title = conf_query['title']
+                    if query_title.isspace() or query_title == "":
+                        query_title = str(i)
+                    else:
+                        query_title = str(i) + ". " + query_title
+                except KeyError:
+                    query_title = str(i)
 
-            data['queries'].append({
-                "query_id" : "Q" + str(i+1),
-                "query_title": query_title,
-                "query_description": query_description,
-                "query_text": query_text})
+                # get description
+                try:
+                    query_description = conf_query['description']
+                except KeyError:
+                    query_description = ""
 
-            logging.info("query_text (scrubbed): \n" + data['queries'][i]['query_text'])
+
+                data['queries'].append({
+                    "query_id": "Q" + str(i),
+                    "query_title": query_title,
+                    "query_description": query_description,
+                    "query_text": query_text})
+
 
         return data
 
+    def construct_value(value):
+        """Since users can input not only string values into the various variables and since such input can also contain
+        lists (to represent multi-values), these values must be harmonized, i.e. if there are lists included in a value,
+        then out of the combination of lists and string inside, a new list containing all multi values concatenated
+        with the single static values."""
+
+        result_values = []
+
+        # if list, then it must be analysed for potential concatenation
+        if type(value) is list:
+
+            # if any sublist in there, then all the values must be concatenated
+            if any(type(v) is list for v in value):
+
+                for sub_value in value:
+
+                    # if current sub value is list, then all its values must be concatenated to the value from before
+                    if type(sub_value) is list:
+
+                        # there are no pre existing values, this sub list is first element, initiate results with it
+                        if len(result_values) == 0:
+                            result_values = sub_value
+
+                        # one pre existing value, can only be simple value, now concatenate this value with every
+                        # value of the sub list
+                        elif len(result_values) == 1:
+                            result_values = [str(result_values[0]) + str(sub_value_element) for sub_value_element in
+                                             sub_value]
+
+                        # pre existing sub list, concatenate each value of the existing with the new values
+                        # must have same length since it is meant for multi-values to be used pair-wise
+                        elif len(result_values) == len(sub_value):
+                            for i in range(0, len(result_values)):
+                                result_values[i] = str(result_values[i]) + str(sub_value[i])
+
+                        else:
+                            raise ValueError("multiple multi-values do not have the same length!")
+
+                    # current sub value is no list, simply concatenate that to whatever exists before
+                    else:
+
+                        # no pre existing value, use current sub value as first element of results
+                        if len(result_values) == 0:
+                            result_values = [sub_value]
+
+                        # there are pre existing values, concatenate to each of these the new sub value
+                        else:
+                            result_values = [str(result_value) + str(sub_value) for result_value in result_values]
+
+            # no sublist, the main list is meant as a set of disjunctive values, return it as it is
+            else:
+                result_values = value
+
+        # if simple value, then it must be integrated into a list for later creation of multiple data containers
+        else:
+            result_values = [value]
+
+        return result_values
+
+
 
     def scrub_query(query_text):
-        """Scrubs the queries clean from unneccessary whitespaces and indentations"""
+        """Scrubs the queries clean from unneccessary whitespaces and indentations, to prevent unneccessary indentations
+        when including original sparql queries into the summaries."""
 
         if not query_text.isspace() and not query_text == "":
 
@@ -330,7 +439,6 @@ def execute_queries(data, output_writer):
             data['header_error_message'] = None
 
         except Exception as ex:
-
             message = "EXCEPTION OCCURED! " + str(ex)
             print(message)
             logging.error(message)
@@ -372,14 +480,14 @@ def execute_queries(data, output_writer):
 
 
                 # get count of total results for query
+                #
                 # For this, search for the first select statement, and replace it with
                 # select count(*) where ... and add a '}' to the end, to make the original select
                 # a sub-query
                 #
-                # This requires a non-standard regex module to use variable length negativ look behind
-                # which are needed to detect only select statements, where there are no '#'
+                # This requires a non-standard regex module to use variable length negative look behind
+                # which are needed to detect only 'select' statements, where there are no '#'
                 # before, which would make it a comment and thus not necesseray to replace
-
                 pattern = regex.compile(r"(?<!#.*)select", regex.IGNORECASE | regex.MULTILINE)
                 query_for_count = pattern.sub(
                     "SELECT COUNT(*) WHERE { \nSELECT",
@@ -698,8 +806,6 @@ class OutputWriter:
             """Instantiates all necessary services for writing results to a specified google folder / sheets-file"""
 
             SCOPES = "https://www.googleapis.com/auth/drive"
-            creds_hardcoded = None
-
 
             # Hardwired credentials
             #
@@ -717,6 +823,7 @@ class OutputWriter:
             # creds_hardcoded = json.loads("""
             #   UNCOMMENT AND INSERT CONTENT OF CREDENTIALS.JSON FILE HERE
             # """)
+            creds_hardcoded = None
 
             # use credentials file if available
             if data['credentials_path']:
@@ -726,10 +833,10 @@ class OutputWriter:
             elif data['client_secret_path']:
                 store = file.Storage('credentials.json')
                 flow = client.flow_from_clientsecrets(data['client_secret_path'], SCOPES)
-                creds = tools.run_flow(flow, store, tools.argparser.parse_args(args=[]))
+
                 # note: adding 'tools.argparser.parse_args(args=[])' here is important, otherwise
                 # oauth2client.tools would parse the main command line arguments
-
+                creds = tools.run_flow(flow, store, tools.argparser.parse_args(args=[]))
 
             elif creds_hardcoded:
 
@@ -910,6 +1017,7 @@ class OutputWriter:
         def main(data):
 
             self.summary_sample_limit = data['summary_sample_limit']
+            # ToDo verschieben ins initiieren
 
             if self.output_destination_type == 'local_folder' or self.output_destination_type == 'local_xlsx':
                 write_header_summary_xlsx_file(data)
@@ -1282,7 +1390,7 @@ class OutputWriter:
 
 
 def create_template():
-    """Creates a template for the config file in the relative folder, where the script is executed"""
+    """Creates a template for the query collection file in the relative folder, where the script is executed"""
 
     template = """
 
@@ -1296,7 +1404,7 @@ title = \"TEST QUERIES\"
 # description
 # defines the textual and human-intended description of the purpose of these queries
 # OPTIONAL, if not set, nothing will be used or displayed
-description = \"This set of queries is used as a template for showcasing a valid configuration.\"
+description = \"This set of queries is used as a template for showcasing a valid query collection file.\"
 
 
 # output_destination
