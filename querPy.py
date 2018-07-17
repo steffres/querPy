@@ -45,20 +45,18 @@ def main():
 
         # extract and validate data from the queries collection file
         data_all_query_collections = read_input(conf, args.r)
-        #ToDo alt: data = read_input(conf, args.r)
-
 
         ## google authentication cases
 
         # case: user provides credentials.json
         if args.c:
-            data_all_query_collections['credentials_path'] = args.c
-            data_all_query_collections['client_secret_path'] = False
+            credentials_path = args.c
+            client_secret_path = False
 
         # case: user provides client_secret.json
         elif args.s:
-            data_all_query_collections['client_secret_path'] = args.s
-            data_all_query_collections['credentials_path'] = False
+            client_secret_path = args.s
+            credentials_path = False
 
         # case: user did not provide any file. Search local folder for files and load them
         else:
@@ -66,68 +64,28 @@ def main():
 
             # case: found credentials.json
             if "credentials.json" in files_list:
-                data_all_query_collections['credentials_path'] = "credentials.json"
-                data_all_query_collections['client_secret_path'] = False
+                credentials_path = "credentials.json"
+                client_secret_path = False
 
             # case: found client_secret.json
             elif "client_secret.json" in files_list:
-                data_all_query_collections['client_secret_path'] = "client_secret.json"
-                data_all_query_collections['credentials_path'] = False
+                client_secret_path = "client_secret.json"
+                credentials_path = False
 
             # case: did not find either
             else:
-                data_all_query_collections['credentials_path'] = False
-                data_all_query_collections['client_secret_path'] = False
+                credentials_path = False
+                client_secret_path = False
 
+        for data_single_query_collection in data_all_query_collections['query_collections']:
 
-
-        for data_single_query_collection in data_all_query_collections:
-
+            data_single_query_collection['credentials_path'] = credentials_path
+            data_single_query_collection['client_secret_path'] = client_secret_path
             output_writer = OutputWriter(data_single_query_collection)
             execute_queries(data_single_query_collection, output_writer)
 
-            # Close xlsl writer
+            # Close xlsx writer
             output_writer.close()
-
-
-
-        # create OutputWriter object from the given output-configuration in the queries collection file
-        # output_writer = OutputWriter(data) # todo alt
-        # Parameter von data, die in OutputWriter(data) gelesen werden:
-        # * output_destination
-        # * output_format
-        # * title
-        # * description
-        # * timestamp_start
-        # * credentials
-        # * credentials_path
-        # * client_secret_path
-        # * queries
-        # * summary_sample_limit
-
-
-        # run all the queries and let them write using the OutputWriter object
-        # execute_queries(data, output_writer) # todo alt
-        # Parameter von data, die in execute_queries gelesen werden:
-        # * endpoint
-        # * output_format
-        # * cooldown_between_queries
-        # * queries
-        #
-        #   # Parameter von data, die in execute_queries > write_header_summary gelesen werden:
-            # * description
-            # * title
-            # * header_error_message
-            # * timestamp_start
-            # * endpoint
-            # * count_triples_in_endpoint
-
-        # Parameter von data, die in execute_queries geschrieben werden:
-        # * count_triples_in_endpoint
-        # * header_error_message
-        # * queries
-
-
 
     # user wants to create a template file and does not run a queries-file
     elif args.t and not args.r:
@@ -142,174 +100,418 @@ def main():
 
 
 
-
 def read_input(conf, conf_filename):
     """Reads input from query collection file and convert into usable data structure available throughout the entire program execution"""
 
     def main(conf):
+        
+        data_tmp = {}
+        max_length_of_multi_values = None
 
-        data = {}
-        data['timestamp_start'] = time.strftime('%y%m%d_%H%M%S')
+        data_tmp['timestamp_start'] = time.strftime('%y%m%d_%H%M%S')
 
         message = \
             "\n################################\n" + \
-            "READING query collection FILE: " + conf_filename + \
+            "READING QUERY COLLECTION FILE: " + conf_filename + \
             "\n################################\n" + \
-            "\ntimestamp: " + str(data['timestamp_start'])
+            "\ntimestamp: " + str(data_tmp['timestamp_start'])
         logging.info(message)
         print(message)
 
 
         # title
+        logging.info("reading title")
         try:
-            data['title'] = construct_value(conf.title)
+            data_tmp['title'] = construct_value(conf.title)
+
         except AttributeError:
             message = "Did not find title in query collection file, using timestamp instead"
             logging.info(message)
             print(message)
-            data['title'] = data['timestamp_start']
-        except ValueError:
-            message = "Invalid value type for title! " + type(conf.title) + "\nOnly allowed here are strings, integers, or lists (containing variables)"
-            logging.error(message)
-            sys.exit(message)
+            data_tmp['title'] = [data_tmp['timestamp_start']]
+        except ValueError as ex:
+            logging.error(ex)
+            sys.exit(ex)
 
-        logging.info("title: " + data['title'])
+        for i in range(0, len(data_tmp['title'])):
+
+            # if empty, use timestamp as title
+            if data_tmp['title'][i] == "" or data_tmp['title'][i].isspace():
+                data_tmp['title'][i] = data_tmp['timestamp_start']
+
+        if len(data_tmp['title']) != 1:
+            if max_length_of_multi_values is None:
+                max_length_of_multi_values = len(data_tmp['title'])
+            elif max_length_of_multi_values != len(data_tmp['title']):
+                message = "Found different lengths of multi values: " + str(data_tmp['title']) + ", compared to " + str(max_length_of_multi_values)
+                logging.error(message)
+                sys.exit(message)
+
+        logging.info("title: " + str(data_tmp['title']))
 
 
         # description
+        logging.info("reading description")
         try:
-            data['description'] = conf.description
+            data_tmp['description'] = construct_value(conf.description)
+
         except AttributeError:
             message = "Did not find description in query collection file, ignoring instead"
             logging.info(message)
             print(message)
-            data['description'] = ""
-        logging.info("description: " + data['description'])
+            data_tmp['description'] = [""]
+        except ValueError as ex:
+            logging.error(ex)
+            sys.exit(ex)
+
+        if len(data_tmp['description']) != 1:
+            if max_length_of_multi_values is None:
+                max_length_of_multi_values = len(data_tmp['description'])
+            elif max_length_of_multi_values != len(data_tmp['description']):
+                message = "Found different lengths of multi values: " + str(data_tmp['description']) + ", compared to " + str(max_length_of_multi_values)
+                logging.error(message)
+                sys.exit(message)
+
+        logging.info("description: " + str(data_tmp['description']))
 
 
         # output_destination
+        logging.info("reading output_destination")
         try:
-            if conf.output_destination == "":
-                data['output_destination'] = "."
-            else:
-                data['output_destination'] = conf.output_destination
+            data_tmp['output_destination'] = construct_value(conf.output_destination)
+
         except AttributeError:
-            message = "Did not find output_destination in query collection file, using local instead"
+            message = "Did not find output_destination in query collection file, using local folder instead"
             logging.info(message)
             print(message)
-            data['output_destination'] = "."
-        message = "output_destination: " + data['output_destination']
-        logging.info(message)
-        print(message)
+            data_tmp['output_destination'] = ["."]
+        except ValueError as ex:
+            logging.error(ex)
+            sys.exit(ex)
+
+        # check for empty output_destinations, replace them with "." if found
+        for i in range(0, len(data_tmp['output_destination'])):
+            if data_tmp['output_destination'][i] == "" or data_tmp['output_destination'][i].isspace():
+                data_tmp['output_destination'][i] = "."
+
+        if len(data_tmp['output_destination']) != 1:
+            if max_length_of_multi_values is None:
+                max_length_of_multi_values = len(data_tmp['output_destination'])
+            elif max_length_of_multi_values != len(data_tmp['output_destination']):
+                message = "Found different lengths of multi values: " + str(data_tmp['output_destination']) + ", compared to " + str(max_length_of_multi_values)
+                logging.error(message)
+                sys.exit(message)
+
+        logging.info("output_destination: " + str(data_tmp['output_destination']))
 
 
         # output_format
+        logging.info("reading output_format")
         try:
-            if conf.output_format.upper() == "CSV":
-                data['output_format'] = CSV
-            elif conf.output_format.upper() == "TSV":
-                data['output_format'] = TSV
-            elif conf.output_format.upper() == "XML":
-                data['output_format'] = XML
-            elif conf.output_format.upper() == "JSON":
-                data['output_format'] = JSON
-            elif conf.output_format.upper() == "XLSX":
-                data['output_format'] = "XLSX"
-            elif conf.output_format.upper() == "" or conf.output_format is None:
-                message = "Did not find output_format, using CSV instead"
-                logging.info(message)
-                print(message)
-                data['output_format'] = CSV
-            else:
-                message = "INVALID INPUT! output_format not recognized: '" + conf.output_format + "'. Available formats are: CSV, TSV, XML, JSON, XLSX"
-                logging.error(message)
-                sys.exit(message)
+            data_tmp['output_format'] = construct_value(conf.output_format)
+
         except AttributeError:
-            message = "Did not find output_format in query collection file, using csv instead"
+            message = "Did not find valid output_format in query collection file, using csv instead"
             logging.info(message)
             print(message)
-            data['output_format'] = CSV
-        logging.info("output_format: " + data['output_format'])
+            data_tmp['output_format'] = [CSV]
+        except ValueError as ex:
+            logging.error(ex)
+            sys.exit(ex)
+
+        # transform the types defined as mere strings into the respective python types, save them
+        for i in range(0, len(data_tmp['output_format'])):
+
+            if data_tmp['output_format'][i].upper() == "CSV":
+                data_tmp['output_format'][i] = CSV
+            elif data_tmp['output_format'][i].upper() == "TSV":
+                data_tmp['output_format'][i] = TSV
+            elif data_tmp['output_format'][i].upper() == "XML":
+                data_tmp['output_format'][i] = XML
+            elif data_tmp['output_format'][i].upper() == "JSON":
+                data_tmp['output_format'][i] = JSON
+            elif data_tmp['output_format'][i].upper() == "XLSX":
+                data_tmp['output_format'][i] = "XLSX"
+            else:
+                message = "Did not find valid output_format, using CSV instead"
+                logging.info(message)
+                print(message)
+                data_tmp['output_format'][i] = CSV
+
+        if len(data_tmp['output_format']) != 1:
+            if max_length_of_multi_values is None:
+                max_length_of_multi_values = len(data_tmp['output_format'])
+            elif max_length_of_multi_values != len(data_tmp['output_format']):
+                message = "Found different lengths of multi values: " + str(data_tmp['output_format']) + ", compared to " + str(max_length_of_multi_values)
+                logging.error(message)
+                sys.exit(message)
+
+        logging.info("output_format: " + str(data_tmp['output_format']))
 
 
         # summary_sample_limit
+        logging.info("reading summary_sample_limit")
         try:
-            data['summary_sample_limit'] = conf.summary_sample_limit
+            data_tmp['summary_sample_limit'] = construct_value(conf.summary_sample_limit)
+
         except AttributeError:
-            message = "Did not find summary_sample_limit in query collection file, a limit of 5 will be used instead"
+            message = "Did not find valid summary_sample_limit in query collection file, a limit of 5 will be used instead"
             logging.info(message)
             print(message)
-            data['summary_sample_limit'] = 5
-        if data['summary_sample_limit'] > 101:
-            data['summary_sample_limit'] = 101
-        logging.info("summary_sample_limit: " + str(data['summary_sample_limit']))
+            data_tmp['summary_sample_limit'] = [5]
+        except ValueError as ex:
+            logging.error(ex)
+            sys.exit(ex)
+
+        # check validity of summary_sample_limits
+        for i in range(0, len(data_tmp['summary_sample_limit'])):
+
+            if data_tmp['summary_sample_limit'][i] > 101:
+
+                data_tmp['summary_sample_limit'][i] = 101
+                message = "Found sample limit which is too high: " + str(data_tmp['summary_sample_limit'][i]) + ", replaced it with limit of 100"
+                logging.info(message)
+                print(message)
+
+            elif data_tmp['summary_sample_limit'][i] < 0 or \
+            type(data_tmp['summary_sample_limit'][i]) is not int:
+
+                data_tmp['summary_sample_limit'][i] = 5
+                message = "Found invalid sample limit: " + str(data_tmp['summary_sample_limit'][i]) + ", replaced it with limit of 5"
+                logging.info(message)
+                print(message)
+
+        if len(data_tmp['summary_sample_limit']) != 1:
+            if max_length_of_multi_values is None:
+                max_length_of_multi_values = len(data_tmp['summary_sample_limit'])
+            elif max_length_of_multi_values != len(data_tmp['summary_sample_limit']):
+                message = "Found different lengths of multi values: " + str(data_tmp['summary_sample_limit']) + ", compared to " + str(max_length_of_multi_values)
+                logging.error(message)
+                sys.exit(message)
+
+        logging.info("summary_sample_limit: " + str(data_tmp['summary_sample_limit']))
 
 
         # cooldown_between_queries
+        logging.info("reading cooldown_between_queries")
         try:
-            data['cooldown_between_queries'] = conf.cooldown_between_queries
+            data_tmp['cooldown_between_queries'] = construct_value(conf.cooldown_between_queries)
+
         except AttributeError:
             message = "Did not find cooldown_between_queries in query collection file, assuming zero instead"
             logging.info(message)
             print(message)
-            data['cooldown_between_queries'] = 0
-        logging.info("cooldown_between_queries: " + str(data['cooldown_between_queries']))
+            data_tmp['cooldown_between_queries'] = [0]
+        except ValueError as ex:
+            logging.error(ex)
+            sys.exit(ex)
+
+        for i in range(0, len(data_tmp['cooldown_between_queries'])):
+
+            if data_tmp['cooldown_between_queries'][i] < 0:
+                data_tmp['cooldown_between_queries'][i] = 0
+                message = "found invalid cooldown of " + str(data_tmp['cooldown_between_queries'][i]) + ", replaced it with 0"
+                logging.info(message)
+                print(message)
+
+        if len(data_tmp['cooldown_between_queries']) != 1:
+            if max_length_of_multi_values is None:
+                max_length_of_multi_values = len(data_tmp['cooldown_between_queries'])
+            elif max_length_of_multi_values != len(data_tmp['cooldown_between_queries']):
+                message = "Found different lengths of multi values: " + str(data_tmp['cooldown_between_queries']) + ", compared to " + str(max_length_of_multi_values)
+                logging.error(message)
+                sys.exit(message)
+
+        logging.info("cooldown_between_queries: " + str(data_tmp['cooldown_between_queries']))
 
 
         # endpoint
+        logging.info("reading endpoints")
         try:
-            data['endpoint'] = conf.endpoint
+            data_tmp['endpoint'] = construct_value(conf.endpoint)
         except AttributeError:
             message = "INVALID INPUT! Did not find endpoint in query collection file! Compare to template file generated by running 'querPy.py -t'"
             logging.error(message)
             sys.exit(message)
-        message = "endpoint: " + data['endpoint']
+        except ValueError as ex:
+            logging.info(ex)
+            print(ex)
+
+        if len(data_tmp['endpoint']) != 1:
+            if max_length_of_multi_values is None:
+                max_length_of_multi_values = len(data_tmp['endpoint'])
+            elif max_length_of_multi_values != len(data_tmp['endpoint']):
+                message = "Found different lengths of multi values: " + str(data_tmp['endpoint']) + ", compared to " + str(max_length_of_multi_values)
+                logging.error(message)
+                sys.exit(message)
+
+        message = "endpoint: " + str(data_tmp['endpoint'])
         logging.info(message)
         print(message)
 
 
-
         # queries
-        i = 0
-        for conf_query in conf.queries:
+        logging.info("reading queries")
+        try:
+            queries = conf.queries
+        except AttributeError:
+            message = "INVALID INPUT! Did not find queries in config file! Compare to template file generated by running 'querPy.py -t'"
+            logging.error(message)
+            sys.exit(message)
+        except ValueError as ex:
+            logging.info(ex)
+            print(ex)
 
-            # get query ( or queries if there are variables defined ) from the query collection file
+        data_tmp['queries'] = []
+        for i in range(0, len(queries)):
+
+            query = {}
+
+            # get title,
+            # check for existing values, if such does not exist, create one
             try:
-                query_texts = conf_query['query']
-
+                query_titles = construct_value(queries[i]["title"])
+                for j in range(0, len(query_titles)):
+                    if query_titles[j].isspace() or query_titles[j] == "":
+                        query_titles[j] = str(i + 1)
+                    else:
+                        query_titles[j] = str(i + 1) + ". " + query_titles[j]
             except KeyError:
-                message = "INVALID INPUT! Did not find queries in query collection file! Compare to template file generated by running 'querPy.py -t'"
+                query_titles = [str(i + 1)]
+
+            if len(query_titles) != 1:
+                if max_length_of_multi_values is None:
+                    max_length_of_multi_values = len(query_titles)
+                elif max_length_of_multi_values != len(query_titles):
+                    message = "Found different lengths of multi values: " + str(query_titles) + ", compared to " + str(
+                        max_length_of_multi_values)
+                    logging.error(message)
+                    sys.exit(message)
+
+            query['query_title'] = query_titles
+            logging.info("query titles: " + str(query_titles))
+
+            # get descriptions
+            # if it doesn't exist, ignore.
+            try:
+                query_descriptions = construct_value(queries[i]["description"])
+            except KeyError:
+                query_descriptions = [""]
+
+            if len(query_descriptions) != 1:
+                if max_length_of_multi_values is None:
+                    max_length_of_multi_values = len(query_descriptions)
+                elif max_length_of_multi_values != len(query_descriptions):
+                    message = "Found different lengths of multi values: " + str(
+                        query_descriptions) + ", compared to " + str(max_length_of_multi_values)
+                    logging.error(message)
+                    sys.exit(message)
+
+            query['query_description'] = query_descriptions
+            logging.info("query titles: " + str(query_descriptions))
+
+            # get queries
+            # scrub them clean of uneccessary whitespaces and indentations
+            try:
+                query_texts = construct_value(queries[i]["query"])
+                for j in range(0, len(query_texts)):
+                    query_texts[j] = scrub_query(query_texts[j])
+            except KeyError:
+                message = "INVALID INPUT! Did not find queries in config file! Compare to template file generated by running 'querPy.py -t'"
                 logging.error(message)
                 sys.exit(message)
+            query['query_text'] = query_texts
 
-            for query_text in query_texts:
-                i += 1
+            if len(query_texts) != 1:
+                if max_length_of_multi_values is None:
+                    max_length_of_multi_values = len(query_texts)
+                elif max_length_of_multi_values != len(query_texts):
+                    message = "Found different lengths of multi values: " + str(query_texts) + ", compared to " + str(
+                        max_length_of_multi_values)
+                    logging.error(message)
+                    sys.exit(message)
 
-                # get title
-                try:
-                    query_title = conf_query['title']
-                    if query_title.isspace() or query_title == "":
-                        query_title = str(i)
-                    else:
-                        query_title = str(i) + ". " + query_title
-                except KeyError:
-                    query_title = str(i)
-
-                # get description
-                try:
-                    query_description = conf_query['description']
-                except KeyError:
-                    query_description = ""
+            data_tmp['queries'].append(query)
+            logging.info("query titles: " + str(query_texts))
 
 
-                data['queries'].append({
-                    "query_id": "Q" + str(i),
-                    "query_title": query_title,
-                    "query_description": query_description,
-                    "query_text": query_text})
+        # assemble the multiple queries from the multi value possibilites
 
+        # iterate through collected data, generating query collections for each element
+        data_all_query_collections = {'query_collections':[]}
+        if max_length_of_multi_values is None:
+            max_length_of_multi_values = 1
+        for i in range(0, max_length_of_multi_values):
 
-        return data
+            data_single_query_collection = {}
+
+            data_single_query_collection['timestamp_start'] = data_tmp['timestamp_start']
+
+            if len(data_tmp['title']) == 1:
+                if max_length_of_multi_values == 1:
+                    data_single_query_collection['title'] = data_tmp['title'][0]
+                else:
+                    data_single_query_collection['title'] = data_tmp['title'][0] + "_(" + str(i+1) + ")"
+            else:
+                if data_tmp['title'][i] in data_tmp['title'][0:i] or data_tmp['title'][i] in data_tmp['title'][i+1:]:
+                    data_single_query_collection['title'] = data_tmp['title'][i] + "_(" + str(i+1) + ")"
+                else:
+                    data_single_query_collection['title'] = data_tmp['title'][i]
+
+            if len(data_tmp['description']) == 1:
+                data_single_query_collection['description'] = data_tmp['description'][0]
+            else:
+                data_single_query_collection['description'] = data_tmp['description'][i]
+
+            if len(data_tmp['output_destination']) == 1:
+                data_single_query_collection['output_destination'] = data_tmp['output_destination'][0]
+            else:
+                data_single_query_collection['output_destination'] = data_tmp['output_destination'][i]
+
+            if len(data_tmp['output_format']) == 1:
+                data_single_query_collection['output_format'] = data_tmp['output_format'][0]
+            else:
+                data_single_query_collection['output_format'] = data_tmp['output_format'][i]
+
+            if len(data_tmp['summary_sample_limit']) == 1:
+                data_single_query_collection['summary_sample_limit'] = data_tmp['summary_sample_limit'][0]
+            else:
+                data_single_query_collection['summary_sample_limit'] = data_tmp['summary_sample_limit'][i]
+
+            if len(data_tmp['cooldown_between_queries']) == 1:
+                data_single_query_collection['cooldown_between_queries'] = data_tmp['cooldown_between_queries'][0]
+            else:
+                data_single_query_collection['cooldown_between_queries'] = data_tmp['cooldown_between_queries'][i]
+
+            if len(data_tmp['endpoint']) == 1:
+                data_single_query_collection['endpoint'] = data_tmp['endpoint'][0]
+            else:
+                data_single_query_collection['endpoint'] = data_tmp['endpoint'][i]
+
+            data_single_query_collection['queries'] = []
+            for query_tmp in data_tmp['queries']:
+                query = {}
+
+                if len(query_tmp['query_title']) == 1:
+                    query['query_title'] = query_tmp['query_title'][0]
+                else:
+                    query['query_title'] = query_tmp['query_title'][i]
+
+                if len(query_tmp['query_description']) == 1:
+                    query['query_description'] = query_tmp['query_description'][0]
+                else:
+                    query['query_description'] = query_tmp['query_description'][i]
+
+                if len(query_tmp['query_text']) == 1:
+                    query['query_text'] = query_tmp['query_text'][0]
+                else:
+                    query['query_text'] = query_tmp['query_text'][i]
+
+                data_single_query_collection['queries'].append(query)
+
+            data_all_query_collections['query_collections'].append(data_single_query_collection)
+
+        return data_all_query_collections
 
     def construct_value(value):
         """Since users can input not only string values into the various variables and since such input can also contain
@@ -347,7 +549,7 @@ def read_input(conf, conf_filename):
                                 result_values[i] = str(result_values[i]) + str(sub_value[i])
 
                         else:
-                            raise ValueError("multiple multi-values do not have the same length!")
+                            raise ValueError("multiple multi-values and/or sublists do not have the same length!\n" + value)
 
                     # current sub value is no list, simply concatenate that to whatever exists before
                     else:
@@ -360,16 +562,17 @@ def read_input(conf, conf_filename):
                         else:
                             result_values = [str(result_value) + str(sub_value) for result_value in result_values]
 
-            # no sublist, the main list is meant as a set of disjunctive values, return it as it is
+            # no sublists, the main list is meant as a set of disjunctive values, return it as it is
             else:
                 result_values = value
 
-        # if simple value, then it must be integrated into a list for later creation of multiple data containers
-        else:
+        # if simple value, then just return it as a list
+        elif type(value) is str or int or float:
             result_values = [value]
+        else:
+            raise ValueError("Invalid type used " + type(value) + ", for content " + value)
 
         return result_values
-
 
 
     def scrub_query(query_text):
@@ -409,16 +612,14 @@ def read_input(conf, conf_filename):
     return main(conf)
 
 
-
 def execute_queries(data, output_writer):
     """Executes all the queries and calls the writer-method from the OutputWriter object to write it to the specified destinations"""
 
     def main(data):
 
-
         message = \
             "\n################################\n" + \
-            "STARTING EXECUTION OF QUERIES" + \
+            "STARTING EXECUTION OF QUERIES: " + data['title'] + \
             "\n################################\n"
         logging.info(message)
         print(message)
@@ -506,7 +707,6 @@ def execute_queries(data, output_writer):
                 query['results_lines_count'] = results_lines_count
                 logging.info("results_lines_count: " + query['results_lines_count'] + "\n")
 
-
             except Exception as ex:
                 message = "EXCEPTION OCCURED WHEN EXECUTING QUERY: " + str(ex) + "\n Continue with execution of next query."
                 print(message)
@@ -563,12 +763,10 @@ def execute_queries(data, output_writer):
 
             return harmonized_rows
 
-
-
         harmonized_result = []
 
         if result is None:
-            return None
+            return []
         else:
 
             # CSV, TSV, XLSX (since XLSX means CSV is internally used for querying the endpoint)
@@ -730,6 +928,13 @@ class OutputWriter:
 
         def main():
 
+            message = "\n################################\n" + \
+            "Setting up output destination: " + data['output_destination']
+            logging.info(message)
+            print(message)
+
+            self.summary_sample_limit = data['summary_sample_limit']
+
             # output_destination_type, interpret from string
 
             if "google.com/drive/folders" in data['output_destination']:
@@ -821,7 +1026,7 @@ class OutputWriter:
             # NEVER INSERT YOUR CREDENTIALS IF YOU WILL SHARE THIS SCRIPT!!
             #
             # creds_hardcoded = json.loads("""
-            #   UNCOMMENT AND INSERT CONTENT OF CREDENTIALS.JSON FILE HERE
+            #   UNCOMMENT AND INSERT CONTENT OF CREDENTIALS.JSON FILE HERE, DELETE NEXT LINE 'creds_hardcoded = None'
             # """)
             creds_hardcoded = None
 
@@ -1004,7 +1209,7 @@ class OutputWriter:
             self.google_service_sheets.spreadsheets().batchUpdate(
                 spreadsheetId=self.google_sheets_id, body=body_to_rename).execute()
 
-            message = "Created google sheets at: \n" + "docs.google.com/spreadsheets/d/" + self.google_sheets_id
+            message = "Created google sheets at: " + "docs.google.com/spreadsheets/d/" + self.google_sheets_id
             logging.info(message)
             print(message)
 
@@ -1015,9 +1220,6 @@ class OutputWriter:
         """Writes the initial header to the summary sheet"""
 
         def main(data):
-
-            self.summary_sample_limit = data['summary_sample_limit']
-            # ToDo verschieben ins initiieren
 
             if self.output_destination_type == 'local_folder' or self.output_destination_type == 'local_xlsx':
                 write_header_summary_xlsx_file(data)
@@ -1062,7 +1264,6 @@ class OutputWriter:
             self.line_number += 4
 
 
-
         def write_header_summary_google_sheet(data):
             """Writes header to google sheets file"""
 
@@ -1089,7 +1290,6 @@ class OutputWriter:
                 header.append([data['header_error_message']])
 
 
-
             # get range for header
             range = self.get_range_from_matrix(self.line_number, 0, header)
             range = "0. Summary!" + range
@@ -1108,7 +1308,7 @@ class OutputWriter:
 
         def main(query):
 
-            if not query['results'] is None:
+            if len(query['results_harmonized']) > 1:
                 message = "Writing results to output_destination"
                 logging.info(message)
                 print(message)
@@ -1271,6 +1471,7 @@ class OutputWriter:
             self.line_number += 1
 
             if query['results'] is None:
+                self.line_number += 1
                 self.xlsx_worksheet_summary.write(self.line_number, 0, "NO RESULTS DUE TO ERROR: " + query['error_message'])
                 self.line_number += 1
 
@@ -1323,6 +1524,7 @@ class OutputWriter:
 
 
             if query['results'] is None:
+                query_stats.append([])
                 query_stats.append(["NO RESULTS DUE TO ERROR: " + query['error_message']])
 
             else:
@@ -1385,7 +1587,6 @@ class OutputWriter:
         if self.output_destination_type == "local_xlsx" or self.output_destination_type == 'local_folder' :
             logging.info("close writer")
             self.xlsx_workbook.close()
-
 
 
 
@@ -1455,7 +1656,7 @@ queries = [
 
         # description
         # OPTIONAL, if not set, nothing will be used or displayed
-        \"description\" : \"Optional description of first query, used to describe the purpose of the query.\" ,
+        \"description\" : \"Optional description of first query, used to describe the purpose of the query, which in this case is of mere demonstration.\" ,
 
         # query
         # the sparql query itself
@@ -1476,7 +1677,7 @@ queries = [
     },  
     {    
         \"title\" : \"Last query\" , 
-        \"description\" : \"This query counts the occurences of distinct predicates\" , 
+        \"description\" : \"This query returns all triples with labels\" , 
         \"query\" : r\"\"\"
             SELECT * WHERE {
                 ?s <http://www.w3.org/2000/01/rdf-schema#label> ?o
@@ -1485,7 +1686,7 @@ queries = [
     },
 ]
 
-# Notes on syntax of queries-set:
+# Each query is itself encoded as a python dictionary, and together these dictionaries are collected in a python list. Beginner's note on such syntax as follows:
 # * the set of queries is enclosed by '[' and ']'
 # * individual queries are enclosed by '{' and '},'
 # * All elements of a query (title, description, query) need to be defined using quotes as well as their contents, and both need to be separated by ':'
@@ -1497,8 +1698,6 @@ queries = [
 """
     with open('template.py', 'w') as f:
         f.write(template)
-
-
 
 
 

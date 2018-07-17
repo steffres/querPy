@@ -61,7 +61,7 @@ queries = [
 
         # description
         # OPTIONAL, if not set, nothing will be used or displayed
-        "description" : "Optional description of first query, used to describe the purpose of the query." ,
+        "description" : "Optional description of first query, used to describe the purpose of the query, which in this case is of mere demonstration." ,
 
         # query
         # the sparql query itself
@@ -82,7 +82,7 @@ queries = [
     },  
     {    
         "title" : "Last query" , 
-        "description" : "This query counts the occurences of distinct predicates" , 
+        "description" : "This query returns all triples with labels" , 
         "query" : r"""
             SELECT * WHERE {
                 ?s <http://www.w3.org/2000/01/rdf-schema#label> ?o
@@ -91,7 +91,7 @@ queries = [
     },
 ]
 
-# Notes on syntax of queries-set:
+# Each query is itself encoded as a python dictionary, and together these dictionaries are collected in a python list. Beginner's note on such syntax as follows:
 # * the set of queries is enclosed by '[' and ']'
 # * individual queries are enclosed by '{' and '},'
 # * All elements of a query (title, description, query) need to be defined using quotes as well as their contents, and both need to be separated by ':'

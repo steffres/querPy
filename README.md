@@ -1,31 +1,3 @@
-# parthenos_discovery
-Various scripts and data related to resource discovery in project Parthenos
-
-## Visualize SPARQL results
-
-`scripts/rdf-binding2d3json.xsl` converts result coming from SPARQL endpoint (in generic xml format to json as expected by the graphviewer[1] (specific [d3][2]-json dialect).
-
-[1] http://graphviewer.acdh.oeaw.ac.at/
-[2] https://d3js.org/
-
-```xml
-<sparql xmlns="http://www.w3.org/2005/sparql-results#" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.w3.org/2001/sw/DataAccess/rf1/result2.xsd">
- <head>
-  <variable name="st"/>
-  <variable name="p"/>
-  <variable name="ot"/>
-  <variable name="count"/>
- </head>
- <results distinct="false" ordered="true">
-  <result>
-   <binding name="st"><uri>http://www.cidoc-crm.org/cidoc-crm/E84_Information_Carrier</uri></binding>
-   <binding name="p"><uri>http://www.cidoc-crm.org/cidoc-crm/P128_carries</uri></binding>
-   <binding name="ot"><uri>http://www.cidoc-crm.org/cidoc-crm/E89_Propositional_object</uri></binding>
-   <binding name="count"><literal datatype="http://www.w3.org/2001/XMLSchema#integer">428147</literal></binding>
-  </result>
-```
-
-
 ## querPy
 
 An extendable script for executing multiple queries against a SPARQL-endpoint of your choice, returning the result-data either in different data formats (csv, tsv, xml, json, xslx) to be saved locally or uploaded as a google sheets files into a google folder or inserted into existing google sheets file. Additionally anytime it is executed it also creates a summary (as a file if saved locally, or as a page if saved into an xslx or google sheets), wherein the original sparql-queries are included, their execution times, their total number of results, and a few sample result lines.
@@ -152,3 +124,85 @@ OPTIONAL, if not set, nothing will be used or displayed
 the sparql query itself
 
 MANDATORY
+
+
+### multi values in querPy
+
+Additionally, there exists also the feature of inserting multiple values into any field of a query collections file. Such multi values are defined as lists embedded in a bigger list. Then querPy will create from such lists individiual fields for each, e.g. one could define 
+
+```
+output_format = ["csv","xml"]
+```
+
+And querPy would create then collection files with all their contents identical except for one having csv and the other xml as defined output_format, which can be useful if one wants to have multiple executions of queries which are very similar to each other except for minor differences which can be encoded in such a way. 
+
+Multi values can also be used inside of strings, e.g. inside sparql queries (where again the whole query-text would be a list with some string first, then the list of multi values, then some string again):
+
+
+```
+...
+"query" : [ "SELECT * WHERE { ?s <http://www.w3.org/2000/01/rdf-schema#", ["label", "type"], "> ?o}" ]
+...
+```
+
+Then querPy would create from this two files with identical content except for these two different queries:
+
+file 1:
+```
+...
+"query" : [ "SELECT * WHERE { ?s <http://www.w3.org/2000/01/rdf-schema#label> ?o}" ]
+...
+```
+file 2:
+```
+...
+"query" : [ "SELECT * WHERE { ?s <http://www.w3.org/2000/01/rdf-schema#type> ?o}" ]
+...
+```
+
+Multi values can also be used multiple times themselves, e.g. one could define the output_format and corresponding queries like this:
+
+
+```
+...
+output_format = ["csv","xml"]
+...
+"query" : [ "SELECT * WHERE { ?s <http://www.w3.org/2000/01/rdf-schema#", ["label", "type"], "> ?o}" ]
+...
+```
+
+querPy would always construct new files by joing the elements in the lists with the same index together, e.g. the first element of the first list with the first element of the second list, et cetera. Thus querPy creates two new files in the example above, where the first has 'csv' as output_format and 'label' used inside its query, while the second would have 'xml' and 'type'. 
+
+Should there be a mismatch between the number of elements of the lists used, querPy will abort.
+
+Additionally, since the query collection file is itself a python module, instead of defining bare lists without identifiers, one could also create them beforehand with and save it as a variable so that it can be reused whenever needed. E.g.
+
+```
+
+...
+
+var_predicates = ["label", "type"]
+
+...
+
+{ 
+"title" : "query 1"
+"query" : [ 
+    "SELECT * WHERE { 
+        ?s <http://www.w3.org/2000/01/rdf-schema#", var_predicates, "> ?o 
+    }" 
+]
+},
+
+{ 
+"title" : "query 2"
+"query" : [ 
+    "SELECT COUNT(?p) WHERE { 
+        ?s ?p ?o . 
+        VALUES ?p { \"http://www.w3.org/2000/01/rdf-schema#", var_predicates, "\" }
+    }"
+]
+},
+
+...
+```
