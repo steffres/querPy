@@ -100,6 +100,11 @@ defines how many seconds should be waited between execution of individual querie
 
 OPTIONAL, if not set, 0 will be used
 
+#### write_empty_results
+Should tabs be created in a summary file for queries which did not return results? Possible values are python boolean values: True, False
+
+OPTIONAL, if not set, False will be used
+
 #### endpoint
 defines the SPARQL endpoint against which all the queries are run
 

@@ -325,6 +325,31 @@ def read_input(conf, conf_filename):
         logging.info("cooldown_between_queries: " + str(data_tmp['cooldown_between_queries']))
 
 
+        # write_empty_results
+        logging.info("reading write_empty_results")
+        try:
+            data_tmp['write_empty_results'] = construct_value(conf.write_empty_results)
+
+        except AttributeError:
+            message = "Did not find write_empty_results in query collection file, assuming False instead"
+            logging.info(message)
+            # print(message)
+            data_tmp['write_empty_results'] = [False]
+        except ValueError as ex:
+            logging.error(ex)
+            sys.exit(ex)
+
+        if len(data_tmp['write_empty_results']) != 1:
+            if max_length_of_multi_values is None:
+                max_length_of_multi_values = len(data_tmp['write_empty_results'])
+            elif max_length_of_multi_values != len(data_tmp['write_empty_results']):
+                message = "Found different lengths of multi values: " + str(data_tmp['write_empty_results']) + ", compared to " + str(max_length_of_multi_values)
+                logging.error(message)
+                sys.exit(message)
+
+        logging.info("write_empty_results: " + str(data_tmp['write_empty_results']))
+
+
         # endpoint
         logging.info("reading endpoints")
         try:
@@ -373,11 +398,11 @@ def read_input(conf, conf_filename):
                 query_titles = construct_value(queries[i]["title"])
                 for j in range(0, len(query_titles)):
                     if query_titles[j].isspace() or query_titles[j] == "":
-                        query_titles[j] = str(i + 1)
+                        query_titles[j] = str(i + 1) + ". "
                     else:
                         query_titles[j] = str(i + 1) + ". " + query_titles[j]
             except KeyError:
-                query_titles = [str(i + 1)]
+                query_titles = [str(i + 1) + ". " ]
 
             if len(query_titles) != 1:
                 if max_length_of_multi_values is None:
@@ -482,6 +507,12 @@ def read_input(conf, conf_filename):
                 data_single_query_collection['cooldown_between_queries'] = data_tmp['cooldown_between_queries'][0]
             else:
                 data_single_query_collection['cooldown_between_queries'] = data_tmp['cooldown_between_queries'][i]
+
+            if len(data_tmp['write_empty_results']) == 1:
+                data_single_query_collection['write_empty_results'] = data_tmp['write_empty_results'][0]
+            else:
+                data_single_query_collection['write_empty_results'] = data_tmp['write_empty_results'][i]
+
 
             if len(data_tmp['endpoint']) == 1:
                 data_single_query_collection['endpoint'] = data_tmp['endpoint'][0]
@@ -666,6 +697,11 @@ def execute_queries(data, output_writer):
             try:
                 # execute query
 
+                # Other formats such as rdf-xml, turtle, and n-triples can be possible with a bit of tweaking.
+                # Problems encountered so far are summarized here:
+                # https://github.com/RDFLib/sparqlwrapper/issues/107
+
+
                 sparql_wrapper.setQuery(query['query_text'])
 
                 if data['output_format'] == "XLSX":
@@ -723,6 +759,9 @@ def execute_queries(data, output_writer):
             logging.info("harmonizing results")
             startTime = time.time()
             query['results_harmonized'] = get_harmonized_result(query['results'], data['output_format'])
+            if query['results_harmonized'] is None:
+                query['results_harmonized'] = [[query['error_message']]]
+
             logging.info("Done with harmonizing results, duration: " + str(time.time() - startTime))
 
             message = "EXECUTION FINISHED\nElapsed time: " + str(query['results_execution_duration'])
@@ -766,7 +805,7 @@ def execute_queries(data, output_writer):
         harmonized_result = []
 
         if result is None:
-            return []
+            return None
         else:
 
             # CSV, TSV, XLSX (since XLSX means CSV is internally used for querying the endpoint)
@@ -934,6 +973,7 @@ class OutputWriter:
             print(message)
 
             self.summary_sample_limit = data['summary_sample_limit']
+            self.write_empty_results = data['write_empty_results']
 
             # output_destination_type, interpret from string
 
@@ -1308,7 +1348,7 @@ class OutputWriter:
 
         def main(query):
 
-            if len(query['results_harmonized']) > 1:
+            if len(query['results_harmonized']) > 1 or self.write_empty_results:
                 message = "Writing results to output_destination"
                 logging.info(message)
                 print(message)
@@ -1594,7 +1634,9 @@ def create_template():
     """Creates a template for the query collection file in the relative folder, where the script is executed"""
 
     template = """
-
+    
+    
+# -------------------- OPTIONAL SETTINGS -------------------- 
 
 # title
 # defines the title of the whole set of queries
@@ -1637,11 +1679,18 @@ summary_sample_limit = 3
 cooldown_between_queries = 0
 
 
+# write_empty_results
+# Should empty results be written to summary files? Possible values are python boolean values: True, False
+# OPTIONAL, if not set, False will be used
+write_empty_results = False
+
+
+# -------------------- MANDATORY SETTINGS -------------------- 
+
 # endpoint
 # defines the SPARQL endpoint against which all the queries are run
 # MANDATORY
 endpoint = \"http://dbpedia.org/sparql\"
-
 
 # queries
 # defines the set of queries to be run. 
@@ -1667,20 +1716,20 @@ queries = [
                 ?s ?p ?o
             }
         \"\"\"
-    }, 
+    },   
+    {    
+        \"title\" : \"Second query\" , 
+        \"description\" : \"This query returns all triples which have a rdf:type associated\" , 
+        \"query\" : r\"\"\"
+            SELECT * WHERE {
+                ?s <http://www.w3.org/2000/01/rdf-schema#label> ?o
+            }
+        \"\"\"
+    },
     {    
         \"query\" : r\"\"\"
             SELECT COUNT (?s) AS ?count_of_subjects_with_type WHERE {
                 ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?o
-            }
-        \"\"\"
-    },  
-    {    
-        \"title\" : \"Last query\" , 
-        \"description\" : \"This query returns all triples with labels\" , 
-        \"query\" : r\"\"\"
-            SELECT * WHERE {
-                ?s <http://www.w3.org/2000/01/rdf-schema#label> ?o
             }
         \"\"\"
     },

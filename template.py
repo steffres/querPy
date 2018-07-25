@@ -1,5 +1,7 @@
 
-
+    
+    
+# -------------------- OPTIONAL SETTINGS -------------------- 
 
 # title
 # defines the title of the whole set of queries
@@ -42,11 +44,18 @@ summary_sample_limit = 3
 cooldown_between_queries = 0
 
 
+# write_empty_results
+# Should empty results be written to summary files? Possible values are python boolean values: True, False
+# OPTIONAL, if not set, False will be used
+write_empty_results = False
+
+
+# -------------------- MANDATORY SETTINGS -------------------- 
+
 # endpoint
 # defines the SPARQL endpoint against which all the queries are run
 # MANDATORY
 endpoint = "http://dbpedia.org/sparql"
-
 
 # queries
 # defines the set of queries to be run. 
@@ -72,20 +81,20 @@ queries = [
                 ?s ?p ?o
             }
         """
-    }, 
+    },   
+    {    
+        "title" : "Second query" , 
+        "description" : "This query returns all triples which have a rdf:type associated" , 
+        "query" : r"""
+            SELECT * WHERE {
+                ?s <http://www.w3.org/2000/01/rdf-schema#label> ?o
+            }
+        """
+    },
     {    
         "query" : r"""
             SELECT COUNT (?s) AS ?count_of_subjects_with_type WHERE {
                 ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?o
-            }
-        """
-    },  
-    {    
-        "title" : "Last query" , 
-        "description" : "This query returns all triples with labels" , 
-        "query" : r"""
-            SELECT * WHERE {
-                ?s <http://www.w3.org/2000/01/rdf-schema#label> ?o
             }
         """
     },
