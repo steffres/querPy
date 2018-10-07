@@ -41,10 +41,10 @@ def main():
         logging.basicConfig(filename="querPy_log.log", filemode="w", level=logging.INFO)
 
         # read queries collection file
-        conf = imp.load_source('conf', args.r)
+        query_collection_module = imp.load_source('conf', args.r)
 
         # extract and validate data from the queries collection file
-        data_all_query_collections = read_input(conf, args.r)
+        data_all_query_collections = read_input(query_collection_module, args.r)
 
         ## google authentication cases
 
@@ -82,7 +82,20 @@ def main():
             data_single_query_collection['credentials_path'] = credentials_path
             data_single_query_collection['client_secret_path'] = client_secret_path
             output_writer = OutputWriter(data_single_query_collection)
-            execute_queries(data_single_query_collection, output_writer)
+
+            result_data = execute_queries(data_single_query_collection, output_writer)
+
+            if hasattr(query_collection_module, "custom_post_processing"):
+                results = []
+                for query in result_data['queries']:
+
+                    dict_tmp = dict(
+                        query_title = query['query_title'],
+                        raw_data = query['results_harmonized']
+                    )
+                    results.append(dict_tmp)
+
+                query_collection_module.custom_post_processing(results)
 
             # Close xlsx writer
             output_writer.close()
@@ -435,6 +448,25 @@ def read_input(conf, conf_filename):
             query['query_description'] = query_descriptions
             logging.info("query titles: " + str(query_descriptions))
 
+            # get chart_titles
+            # if it doesn't exist, ignore
+            try:
+                query_chart_titles = construct_value(queries[i]["chart_title"])
+            except KeyError:
+                query_chart_titles = [""]
+
+            if len(query_chart_titles) != 1:
+                if max_length_of_multi_values is None:
+                    max_length_of_multi_values = len(query_chart_titles)
+                elif max_length_of_multi_values != len(query_chart_titles):
+                    message = "Found different lengths of multi values: " + str(
+                        query_chart_titles) + ", compared to " + str(max_length_of_multi_values)
+                    logging.error(message)
+                    sys.exit(message)
+
+            query['query_chart_title'] = query_chart_titles
+            logging.info("query chart titles: " + str(query_chart_titles))
+
             # get queries
             # scrub them clean of uneccessary whitespaces and indentations
             try:
@@ -532,6 +564,11 @@ def read_input(conf, conf_filename):
                     query['query_description'] = query_tmp['query_description'][0]
                 else:
                     query['query_description'] = query_tmp['query_description'][i]
+
+                if len(query_tmp['query_chart_title']) == 1:
+                    query['query_chart_title'] = query_tmp['query_chart_title'][0]
+                else:
+                    query['query_chart_title'] = query_tmp['query_chart_title'][i]
 
                 if len(query_tmp['query_text']) == 1:
                     query['query_text'] = query_tmp['query_text'][0]
@@ -1680,7 +1717,7 @@ cooldown_between_queries = 0
 
 
 # write_empty_results
-# Should empty results be written to summary files? Possible values are python boolean values: True, False
+# Should tabs be created in a summary file for queries which did not return results? Possible values are python boolean values: True, False
 # OPTIONAL, if not set, False will be used
 write_empty_results = False
 
@@ -1696,8 +1733,6 @@ endpoint = \"http://dbpedia.org/sparql\"
 # defines the set of queries to be run. 
 # MANDATAORY
 queries = [
-
-
     {
         # title
         # OPTIONAL, if not set, timestamp will be used
@@ -1705,7 +1740,7 @@ queries = [
 
         # description
         # OPTIONAL, if not set, nothing will be used or displayed
-        \"description\" : \"Optional description of first query, used to describe the purpose of the query, which in this case is of mere demonstration.\" ,
+        \"description\" : \"Optional description of first query, used to describe the purpose of the query.\" ,
 
         # query
         # the sparql query itself
@@ -1715,27 +1750,32 @@ queries = [
             SELECT * WHERE {
                 ?s ?p ?o
             }
+            LIMIT 50
         \"\"\"
     },   
     {    
         \"title\" : \"Second query\" , 
-        \"description\" : \"This query returns all triples which have a rdf:type associated\" , 
+        \"description\" : \"This query returns all triples which have a label associated\" , 
         \"query\" : r\"\"\"
             SELECT * WHERE {
                 ?s <http://www.w3.org/2000/01/rdf-schema#label> ?o
             }
+            LIMIT 50
         \"\"\"
     },
     {    
         \"query\" : r\"\"\"
-            SELECT COUNT (?s) AS ?count_of_subjects_with_type WHERE {
-                ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?o
+            SELECT * WHERE {
+                ?s ?p ?o . 
+                FILTER ( ?p = <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> )
             }
+            LIMIT 50
         \"\"\"
     },
 ]
 
-# Each query is itself encoded as a python dictionary, and together these dictionaries are collected in a python list. Beginner's note on such syntax as follows:
+# Each query is itself encoded as a python dictionary, and together these dictionaries are collected in a python list. 
+# Beginner's note on such syntax as follows:
 # * the set of queries is enclosed by '[' and ']'
 # * individual queries are enclosed by '{' and '},'
 # * All elements of a query (title, description, query) need to be defined using quotes as well as their contents, and both need to be separated by ':'
@@ -1744,7 +1784,40 @@ queries = [
 # * Any indentation (tabs or spaces) do not influence the queries-syntax, they are merely syntactic sugar.
 
 
+
+# --------------- CUSTOM POST-PROCESSING METHOD --------------- 
+'''
+The following is a method stump for custom post processing which is always called if present and to which
+result data from the query execution is passed. This way you can implement your own post-processing steps here.
+
+the incoming result data is a list of dictioniares which have the following
+keys and respective values:
+'query_title' - the string defined above for the title of an individual query
+'raw_data' - the resulting data of the query, organized in a two-dimensional list, where the first row contains
+the headers. In the most cases you would only need to use this anyway.
+
+As an example to use only the raw data from the second query defined above, write:
+result[1]['raw_data']
+'''
+
+# UNCOMMENT THE FOLLOWING LINES FOR A QUICKSTART:
+'''    
+def custom_post_processing(results):
+
+    print(\"\\n\\nSome samples from the raw data:\\n\")
+
+    for result in results:
+
+        print(result['query_title'])
+
+        limit = 5 if len(result['raw_data']) > 5 else len(result['raw_data'])
+        for i in range(0, limit):
+            print(result['raw_data'][i])
+            
+        print()
+'''
 """
+
     with open('template.py', 'w') as f:
         f.write(template)
 

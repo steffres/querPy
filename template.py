@@ -45,7 +45,7 @@ cooldown_between_queries = 0
 
 
 # write_empty_results
-# Should empty results be written to summary files? Possible values are python boolean values: True, False
+# Should tabs be created in a summary file for queries which did not return results? Possible values are python boolean values: True, False
 # OPTIONAL, if not set, False will be used
 write_empty_results = False
 
@@ -61,8 +61,6 @@ endpoint = "http://dbpedia.org/sparql"
 # defines the set of queries to be run. 
 # MANDATAORY
 queries = [
-
-
     {
         # title
         # OPTIONAL, if not set, timestamp will be used
@@ -70,7 +68,7 @@ queries = [
 
         # description
         # OPTIONAL, if not set, nothing will be used or displayed
-        "description" : "Optional description of first query, used to describe the purpose of the query, which in this case is of mere demonstration." ,
+        "description" : "Optional description of first query, used to describe the purpose of the query." ,
 
         # query
         # the sparql query itself
@@ -80,27 +78,32 @@ queries = [
             SELECT * WHERE {
                 ?s ?p ?o
             }
+            LIMIT 50
         """
     },   
     {    
         "title" : "Second query" , 
-        "description" : "This query returns all triples which have a rdf:type associated" , 
+        "description" : "This query returns all triples which have a label associated" , 
         "query" : r"""
             SELECT * WHERE {
                 ?s <http://www.w3.org/2000/01/rdf-schema#label> ?o
             }
+            LIMIT 50
         """
     },
     {    
         "query" : r"""
-            SELECT COUNT (?s) AS ?count_of_subjects_with_type WHERE {
-                ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?o
+            SELECT * WHERE {
+                ?s ?p ?o . 
+                FILTER ( ?p = <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> )
             }
+            LIMIT 50
         """
     },
 ]
 
-# Each query is itself encoded as a python dictionary, and together these dictionaries are collected in a python list. Beginner's note on such syntax as follows:
+# Each query is itself encoded as a python dictionary, and together these dictionaries are collected in a python list. 
+# Beginner's note on such syntax as follows:
 # * the set of queries is enclosed by '[' and ']'
 # * individual queries are enclosed by '{' and '},'
 # * All elements of a query (title, description, query) need to be defined using quotes as well as their contents, and both need to be separated by ':'
@@ -109,3 +112,35 @@ queries = [
 # * Any indentation (tabs or spaces) do not influence the queries-syntax, they are merely syntactic sugar.
 
 
+
+# --------------- CUSTOM POST-PROCESSING METHOD --------------- 
+'''
+The following is a method stump for custom post processing which is always called if present and to which
+result data from the query execution is passed. This way you can implement your own post-processing steps here.
+
+the incoming result data is a list of dictioniares which have the following
+keys and respective values:
+'query_title' - the string defined above for the title of an individual query
+'raw_data' - the resulting data of the query, organized in a two-dimensional list, where the first row contains
+the headers. In the most cases you would only need to use this anyway.
+
+As an example to use only the raw data from the second query defined above, write:
+result[1]['raw_data']
+'''
+
+# UNCOMMENT THE FOLLOWING LINES FOR A QUICKSTART:
+'''    
+def custom_post_processing(results):
+
+    print("\n\nSome samples from the raw data:\n")
+
+    for result in results:
+
+        print(result['query_title'])
+
+        limit = 5 if len(result['raw_data']) > 5 else len(result['raw_data'])
+        for i in range(0, limit):
+            print(result['raw_data'][i])
+            
+        print()
+'''

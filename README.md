@@ -131,6 +131,16 @@ the sparql query itself
 MANDATORY
 
 
+### custom post-processing of data
+
+In a query collection file, if the method 'custom_post_processing' is present or uncommented, then querPy will call it. This way you can implement your own custom post processing steps in python there.
+
+To the method a list of dictionaries is passed, where in each dict you'd find the key-values:
+* query_title' - the string defined above for the title of an individual query
+* raw_data' - the resulting data of the query, organized in a two-dimensional list, where the first row contains the headers. In the most cases you would only need to use this anyway.
+
+Uncomment the respective lines in the template file to see a concrete example.
+
 ### multi values in querPy
 
 Additionally, there exists also the feature of inserting multiple values into any field of a query collections file. Such multi values are defined as lists embedded in a bigger list. Then querPy will create from such lists individiual fields for each, e.g. one could define 
