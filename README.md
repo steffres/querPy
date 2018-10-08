@@ -136,13 +136,31 @@ MANDATORY
 
 ### custom post-processing of data
 
-In a query collection file, if the method 'custom_post_processing' is present or uncommented, then querPy will call it. This way you can implement your own custom post processing steps in python there.
+The method 'custom_post_processing(results)' is a stump for custom post processing which is always called if present and to which
+result data from the query execution is passed. This way you can implement your own post-processing steps there.
 
-To the method a list of dictionaries is passed, where in each dict you'd find the key-values:
-* query_title' - the string defined above for the title of an individual query
-* raw_data' - the resulting data of the query, organized in a two-dimensional list, where the first row contains the headers. In the most cases you would only need to use this anyway.
+The incoming 'results' argument is a list, where each list-element is a dictionary represting all data of a query.
 
-Uncomment the respective lines in the template file to see a concrete example.
+#### This dictionary has the following keys and respective values:
+
+##### most likely to be needed are these two keys and values:
+* 'query_title' - title of an individual query, as defined above.
+* 'results_matrix' - the result data organized as a two dimensional list, where the first row contains the headers. 
+This value is what you would most likely need to post process the result data.  
+
+##### Other than these two, each query dictionary also contains data from and for querPy, which might be of use:
+* 'query_description' - description of an individual query, as defined above.
+* 'query_for_count' - an infered query from the original query, is used to get number of result lines at the triplestore.
+* 'query_text' - the sparql query itself.
+* 'results_execution_duration' - the duration it took to run the sparql query.
+* 'results_lines_count' - the number of lines the sparql query produced at the triplestore.
+* 'results_raw' - the result data in the specified format, encapsulated by its respective python class (e.g. a python json object).
+
+As an example to print the raw data from the second query defined above, write:
+```
+print(results[1]['results_matrix'])
+```
+In the template file you would find some quickstart code, which showcases a very basic handling of data.
 
 ### multi values in querPy
 

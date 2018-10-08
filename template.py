@@ -115,32 +115,43 @@ queries = [
 
 # --------------- CUSTOM POST-PROCESSING METHOD --------------- 
 '''
-The following is a method stump for custom post processing which is always called if present and to which
-result data from the query execution is passed. This way you can implement your own post-processing steps here.
+The method 'custom_post_processing(results)' is a stump for custom post processing which is always called if present and to which
+result data from the query execution is passed. This way you can implement your own post-processing steps there.
 
-the incoming result data is a list of dictioniares which have the following
-keys and respective values:
-'query_title' - the string defined above for the title of an individual query
-'raw_data' - the resulting data of the query, organized in a two-dimensional list, where the first row contains
-the headers. In the most cases you would only need to use this anyway.
+The incoming 'results' argument is a list, where each list-element is a dictionary represting all data of a query.
 
-As an example to use only the raw data from the second query defined above, write:
-result[1]['raw_data']
+This dictionary has the following keys and respective values:
+
+* most likely to be needed are these two keys and values:
+'query_title' - title of an individual query, as defined above.
+'results_matrix' - the result data organized as a two dimensional list, where the first row contains the headers. 
+This value is what you would most likely need to post process the result data.  
+
+* other than these two, each query dictionary also contains data from and for querPy, which might be of use:
+'query_description' - description of an individual query, as defined above.
+'query_text' - the sparql query itself.
+'results_execution_duration' - the duration it took to run the sparql query.
+'results_lines_count' - the number of lines the sparql query produced at the triplestore.
+'results_raw' - the result data in the specified format, encapsulated by its respective python class (e.g. a python json object).
+'query_for_count' - an infered query from the original query, is used to get number of result lines at the triplestore.
+
+As an example to print the raw data from the second query defined above, write:
+print(results[1]['results_matrix'])
 '''
 
 # UNCOMMENT THE FOLLOWING LINES FOR A QUICKSTART:
 '''    
 def custom_post_processing(results):
 
-    print("\n\nSome samples from the raw data:\n")
+    print("\n\Samples from the raw data:\n")
 
     for result in results:
 
-        print(result['query_title'])
+        print("some results of query: " + result['query_title'])
 
-        limit = 5 if len(result['raw_data']) > 5 else len(result['raw_data'])
+        limit = 5 if len(result['results_matrix']) > 5 else len(result['results_matrix'])
         for i in range(0, limit):
-            print(result['raw_data'][i])
+            print(result['results_matrix'][i])
             
         print()
 '''

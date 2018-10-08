@@ -86,16 +86,7 @@ def main():
             result_data = execute_queries(data_single_query_collection, output_writer)
 
             if hasattr(query_collection_module, "custom_post_processing"):
-                results = []
-                for query in result_data['queries']:
-
-                    dict_tmp = dict(
-                        query_title = query['query_title'],
-                        raw_data = query['results_harmonized']
-                    )
-                    results.append(dict_tmp)
-
-                query_collection_module.custom_post_processing(results)
+                query_collection_module.custom_post_processing(result_data['queries'])
 
             # Close xlsx writer
             output_writer.close()
@@ -448,24 +439,26 @@ def read_input(conf, conf_filename):
             query['query_description'] = query_descriptions
             logging.info("query titles: " + str(query_descriptions))
 
-            # get chart_titles
-            # if it doesn't exist, ignore
-            try:
-                query_chart_titles = construct_value(queries[i]["chart_title"])
-            except KeyError:
-                query_chart_titles = [""]
-
-            if len(query_chart_titles) != 1:
-                if max_length_of_multi_values is None:
-                    max_length_of_multi_values = len(query_chart_titles)
-                elif max_length_of_multi_values != len(query_chart_titles):
-                    message = "Found different lengths of multi values: " + str(
-                        query_chart_titles) + ", compared to " + str(max_length_of_multi_values)
-                    logging.error(message)
-                    sys.exit(message)
-
-            query['query_chart_title'] = query_chart_titles
-            logging.info("query chart titles: " + str(query_chart_titles))
+            # ToDo: remove if ultimately unnecessary
+            #
+            # # get chart_titles
+            # # if it doesn't exist, ignore
+            # try:
+            #     query_chart_titles = construct_value(queries[i]["chart_title"])
+            # except KeyError:
+            #     query_chart_titles = [""]
+            #
+            # if len(query_chart_titles) != 1:
+            #     if max_length_of_multi_values is None:
+            #         max_length_of_multi_values = len(query_chart_titles)
+            #     elif max_length_of_multi_values != len(query_chart_titles):
+            #         message = "Found different lengths of multi values: " + str(
+            #             query_chart_titles) + ", compared to " + str(max_length_of_multi_values)
+            #         logging.error(message)
+            #         sys.exit(message)
+            #
+            # query['query_chart_title'] = query_chart_titles
+            # logging.info("query chart titles: " + str(query_chart_titles))
 
             # get queries
             # scrub them clean of uneccessary whitespaces and indentations
@@ -565,10 +558,12 @@ def read_input(conf, conf_filename):
                 else:
                     query['query_description'] = query_tmp['query_description'][i]
 
-                if len(query_tmp['query_chart_title']) == 1:
-                    query['query_chart_title'] = query_tmp['query_chart_title'][0]
-                else:
-                    query['query_chart_title'] = query_tmp['query_chart_title'][i]
+                # ToDo: remove if ultimately unnecessary
+                #
+                # if len(query_tmp['query_chart_title']) == 1:
+                #     query['query_chart_title'] = query_tmp['query_chart_title'][0]
+                # else:
+                #     query['query_chart_title'] = query_tmp['query_chart_title'][i]
 
                 if len(query_tmp['query_text']) == 1:
                     query['query_text'] = query_tmp['query_text'][0]
@@ -788,16 +783,16 @@ def execute_queries(data, output_writer):
                 query['results_execution_duration'] = time.time() - startTime
 
 
-            query['results'] = results
+            query['results_raw'] = results
             logging.info("results_execution_duration: " + str(query['results_execution_duration']) + "\n")
 
 
             # harmonize results for other uses later
             logging.info("harmonizing results")
             startTime = time.time()
-            query['results_harmonized'] = get_harmonized_result(query['results'], data['output_format'])
-            if query['results_harmonized'] is None:
-                query['results_harmonized'] = [[query['error_message']]]
+            query['results_matrix'] = get_harmonized_result(query['results_raw'], data['output_format'])
+            if query['results_matrix'] is None:
+                query['results_matrix'] = [[query['error_message']]]
 
             logging.info("Done with harmonizing results, duration: " + str(time.time() - startTime))
 
@@ -891,16 +886,16 @@ def execute_queries(data, output_writer):
 
                 # get keys and save in first row of result_keyed
                 keys = []
-                for key in result['results']['bindings'][0]:
+                for key in result['results_raw']['bindings'][0]:
                     keys.append(key)
                 result_keyed.append(keys)
 
                 # go through the json - rows and extract key-value pairs from each, insert them into result_keyed
                 valid_row_length = len(keys)
-                for y in range(0, len(result['results']['bindings'])):
+                for y in range(0, len(result['results_raw']['bindings'])):
                     dict_tmp = {}
 
-                    row = result['results']['bindings'][y]
+                    row = result['results_raw']['bindings'][y]
 
                     for key in row:
                         column = row[key]['value']
@@ -1385,7 +1380,7 @@ class OutputWriter:
 
         def main(query):
 
-            if len(query['results_harmonized']) > 1 or self.write_empty_results:
+            if len(query['results_matrix']) > 1 or self.write_empty_results:
                 message = "Writing results to output_destination"
                 logging.info(message)
                 print(message)
@@ -1409,9 +1404,9 @@ class OutputWriter:
                 sanitized_query_title = sanitized_query_title[:29]
 
             worksheet = self.xlsx_workbook.add_worksheet( sanitized_query_title )
-            for y in range(0, len(query['results_harmonized'])):
-                for x in range(0, len(query['results_harmonized'][y])):
-                    column = query['results_harmonized'][y][x]
+            for y in range(0, len(query['results_matrix'])):
+                for x in range(0, len(query['results_matrix'][y])):
+                    column = query['results_matrix'][y][x]
                     if len(str(column)) > 255:
                         column = str(column)[:255]
                     worksheet.write(y, x, column)
@@ -1429,17 +1424,17 @@ class OutputWriter:
             # csv and tsv files need to be written as bytes
             if self.output_format == CSV or self.output_format == TSV:
                 with local_file.open('wb') as fw:
-                    fw.write(query['results'])
+                    fw.write(query['results_raw'])
 
             # xml document is passed a writer object
             elif self.output_format == XML:
                 with local_file.open('w') as fw:
-                    query['results'].writexml(fw)
+                    query['results_raw'].writexml(fw)
 
             # json needs json.dump() method
             elif self.output_format == JSON:
                 with local_file.open('w') as fw:
-                    json.dump(query['results'], fw)
+                    json.dump(query['results_raw'], fw)
 
 
         def write_query_result_to_google_sheets(query):
@@ -1457,8 +1452,8 @@ class OutputWriter:
                             'properties': {
                                 'title': sanitized_query_title,
                                 'gridProperties': {
-                                    'rowCount': len(query['results_harmonized']),
-                                    'columnCount': len(query['results_harmonized'][0])
+                                    'rowCount': len(query['results_matrix']),
+                                    'columnCount': len(query['results_matrix'][0])
                                 }
                             }
                         }
@@ -1496,14 +1491,14 @@ class OutputWriter:
             # get range of harmonized results
             google_sheet_range = \
                 sanitized_query_title + "!" + \
-                self.get_range_from_matrix(0, 0, query['results_harmonized'])
+                self.get_range_from_matrix(0, 0, query['results_matrix'])
 
             # write into sheet
             self.google_service_sheets.spreadsheets().values().update(
                 spreadsheetId=self.google_sheets_id,
                 range=google_sheet_range,
                 valueInputOption="RAW",
-                body={ 'values': query['results_harmonized']}
+                body={ 'values': query['results_matrix']}
             ).execute()
 
         main(query)
@@ -1547,7 +1542,7 @@ class OutputWriter:
             self.xlsx_worksheet_summary.write(self.line_number, 0, "Duration of execution in seconds: " + str(query['results_execution_duration']))
             self.line_number += 1
 
-            if query['results'] is None:
+            if query['results_raw'] is None:
                 self.line_number += 1
                 self.xlsx_worksheet_summary.write(self.line_number, 0, "NO RESULTS DUE TO ERROR: " + query['error_message'])
                 self.line_number += 1
@@ -1563,7 +1558,7 @@ class OutputWriter:
 
                     self.xlsx_worksheet_summary.write(self.line_number, 0, "Sample results: ", self.bold_format)
                     self.line_number += 1
-                    harmonized_rows = query['results_harmonized']
+                    harmonized_rows = query['results_matrix']
 
                     limit += 1
                     if len(harmonized_rows) < limit:
@@ -1600,7 +1595,7 @@ class OutputWriter:
                  str(query['results_execution_duration'])])
 
 
-            if query['results'] is None:
+            if query['results_raw'] is None:
                 query_stats.append([])
                 query_stats.append(["NO RESULTS DUE TO ERROR: " + query['error_message']])
 
@@ -1615,7 +1610,7 @@ class OutputWriter:
 
                     query_stats.append([])
                     query_stats.append(["Sample results: "])
-                    harmonized_rows = query['results_harmonized']
+                    harmonized_rows = query['results_matrix']
 
                     # set limit as defined, readjust if results should be less than it or if it exceeds gsheets-capacities
                     limit += 1
@@ -1787,32 +1782,43 @@ queries = [
 
 # --------------- CUSTOM POST-PROCESSING METHOD --------------- 
 '''
-The following is a method stump for custom post processing which is always called if present and to which
-result data from the query execution is passed. This way you can implement your own post-processing steps here.
+The method 'custom_post_processing(results)' is a stump for custom post processing which is always called if present and to which
+result data from the query execution is passed. This way you can implement your own post-processing steps there.
 
-the incoming result data is a list of dictioniares which have the following
-keys and respective values:
-'query_title' - the string defined above for the title of an individual query
-'raw_data' - the resulting data of the query, organized in a two-dimensional list, where the first row contains
-the headers. In the most cases you would only need to use this anyway.
+The incoming 'results' argument is a list, where each list-element is a dictionary represting all data of a query.
 
-As an example to use only the raw data from the second query defined above, write:
-result[1]['raw_data']
+This dictionary has the following keys and respective values:
+
+* most likely to be needed are these two keys and values:
+'query_title' - title of an individual query, as defined above.
+'results_matrix' - the result data organized as a two dimensional list, where the first row contains the headers. 
+This value is what you would most likely need to post process the result data.  
+
+* other than these two, each query dictionary also contains data from and for querPy, which might be of use:
+'query_description' - description of an individual query, as defined above.
+'query_text' - the sparql query itself.
+'results_execution_duration' - the duration it took to run the sparql query.
+'results_lines_count' - the number of lines the sparql query produced at the triplestore.
+'results_raw' - the result data in the specified format, encapsulated by its respective python class (e.g. a python json object).
+'query_for_count' - an infered query from the original query, is used to get number of result lines at the triplestore.
+
+As an example to print the raw data from the second query defined above, write:
+print(results[1]['results_matrix'])
 '''
 
 # UNCOMMENT THE FOLLOWING LINES FOR A QUICKSTART:
 '''    
 def custom_post_processing(results):
 
-    print(\"\\n\\nSome samples from the raw data:\\n\")
+    print(\"\\n\\Samples from the raw data:\\n\")
 
     for result in results:
 
-        print(result['query_title'])
+        print(\"some results of query: \" + result['query_title'])
 
-        limit = 5 if len(result['raw_data']) > 5 else len(result['raw_data'])
+        limit = 5 if len(result['results_matrix']) > 5 else len(result['results_matrix'])
         for i in range(0, limit):
-            print(result['raw_data'][i])
+            print(result['results_matrix'][i])
             
         print()
 '''
